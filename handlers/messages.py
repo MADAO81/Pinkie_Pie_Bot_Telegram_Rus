@@ -1,0 +1,92 @@
+# bot/handlers/messages.py
+"""
+Обработчик текстовых сообщений бота Пинки Пай.
+
+Автор: MADAO81
+Версия: 2.0
+"""
+
+import logging
+from telegram import Update
+from telegram.ext import ContextTypes
+from bot.core.mood_system import MoodSystem
+from bot.services.ai_service import get_pinkie_response
+from bot.services.weather_service import WeatherService
+from bot.utils.time_utils import is_working_hours, get_working_status_message
+from bot.core.context_manager import ContextManager
+
+# Настройка логирования
+logger = logging.getLogger(__name__)
+
+# Инициализация сервисов
+mood_system = MoodSystem()
+weather_service = WeatherService()
+context_manager = ContextManager()
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработка текстовых сообщений.
+
+    Args:
+        update (Update): Объект обновления
+        context (ContextTypes.DEFAULT_TYPE): Контекст
+    """
+    # Проверяем рабочее время
+    if not is_working_hours():
+        if update.message.chat.type == "private":
+            await update.message.reply_text(get_working_status_message())
+        return
+
+    # Отправляем статус
+    status_message = await update.message.reply_text("💭 Думаю...")
+
+    try:
+        user_id = update.effective_user.id
+        user_message = update.message.text
+
+        # Определяем настроение
+        mood, weather = await mood_system.determine_mood()
+        mood_desc = "грустное" if mood == "sad" else "весёлое"
+
+        # Получаем контекст диалога
+        context_history = context_manager.get_context(user_id)
+
+        # Генерируем ответ
+        response = await get_pinkie_response(
+            user_message=user_message,
+            mood_description=mood_desc,
+            context_history=context_history
+        )
+
+        if not response:
+            response = (
+                "😅 Ой-ой-ой! Что-то у меня мозги закипели!\n"
+                "Давай попробуем ещё раз? 🎈"
+            )
+
+        # Добавляем погоду в ответ
+        weather_text = weather_service.get_weather_text(weather)
+        response += f"\n\n{weather_text}"
+
+        # Удаляем статус
+        await status_message.delete()
+
+        # Отправляем ответ
+        if update.message.chat.type == "private":
+            await update.message.reply_text(response)
+        else:
+            await update.message.reply_text(
+                response,
+                reply_to_message_id=update.message.message_id
+            )
+
+        # Сохраняем контекст
+        context_manager.save_context(user_id, user_message, response)
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка обработки сообщения: {e}")
+        await status_message.edit_text(
+            "😅 Упс! Что-то пошло не так!\n"
+            "Попробуй ещё раз или напиши /help для справки! 💕"
+        )
