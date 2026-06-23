@@ -15,30 +15,20 @@ from bot.services.weather_service import WeatherService
 from bot.utils.time_utils import is_working_hours, get_working_status_message
 from bot.core.context_manager import ContextManager
 
-# Настройка логирования
 logger = logging.getLogger(__name__)
 
-# Инициализация сервисов
 mood_system = MoodSystem()
 weather_service = WeatherService()
 context_manager = ContextManager()
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработка текстовых сообщений.
-
-    Args:
-        update (Update): Объект обновления
-        context (ContextTypes.DEFAULT_TYPE): Контекст
-    """
-    # Проверяем рабочее время
+    """Обработка текстовых сообщений."""
     if not is_working_hours():
         if update.message.chat.type == "private":
             await update.message.reply_text(get_working_status_message())
         return
 
-    # Отправляем статус
     status_message = await update.message.reply_text("💭 Думаю...")
 
     try:
@@ -60,19 +50,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         if not response:
-            response = (
-                "😅 Ой-ой-ой! Что-то у меня мозги закипели!\n"
-                "Давай попробуем ещё раз? 🎈"
-            )
+            response = "😅 Ой-ой-ой! Что-то у меня мозги закипели!\nДавай попробуем ещё раз? 🎈"
 
-        # Добавляем погоду в ответ
-        weather_text = weather_service.get_weather_text(weather)
-        response += f"\n\n{weather_text}"
+        # Добавляем погоду ТОЛЬКО если пользователь спрашивает
+        weather_keywords = ["погода", "weather", "за окном", "температура", "дождь", "солнце", "градус", "ветер", "холодно", "тепло", "метео"]
+        if any(keyword in user_message.lower() for keyword in weather_keywords):
+            weather_text = weather_service.get_weather_text(weather)
+            response += f"\n\n{weather_text}"
 
-        # Удаляем статус
         await status_message.delete()
 
-        # Отправляем ответ
         if update.message.chat.type == "private":
             await update.message.reply_text(response)
         else:
@@ -81,7 +68,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_to_message_id=update.message.message_id
             )
 
-        # Сохраняем контекст
         context_manager.save_context(user_id, user_message, response)
 
     except Exception as e:
