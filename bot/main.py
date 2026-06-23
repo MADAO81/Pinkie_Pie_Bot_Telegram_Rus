@@ -21,7 +21,8 @@ from bot.handlers.commands import (
     help_command,
     recipe_command,
     joke_command,
-    song_command
+    song_command,
+    weather_command  # <-- ДОБАВЛЯЕМ
 )
 from bot.handlers.messages import handle_message
 from bot.handlers.photos import handle_photo
@@ -64,6 +65,7 @@ def main():
     app.add_handler(CommandHandler("recipe", recipe_command))
     app.add_handler(CommandHandler("joke", joke_command))
     app.add_handler(CommandHandler("song", song_command))
+    app.add_handler(CommandHandler("weather", weather_command))  # <-- ДОБАВЛЯЕМ
 
     # Регистрируем обработчики сообщений
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
