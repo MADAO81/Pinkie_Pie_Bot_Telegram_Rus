@@ -1,10 +1,10 @@
 # bot/services/recipe_service.py
 """
-Сервис для парсинга рецептов с food.ru.
-Только сладости и выпечка.
+Сервис для парсинга рецептов с edimdoma.ru.
+Только выпечка и сладости.
 
 Автор: MADAO81
-Версия: 3.2
+Версия: 3.3
 """
 
 import logging
@@ -20,17 +20,20 @@ logger = logging.getLogger(__name__)
 
 class RecipeService:
     """
-    Класс для получения рецептов с сайта food.ru.
+    Класс для получения рецептов с сайта edimdoma.ru.
     """
 
     def __init__(self):
         """Инициализация сервиса рецептов."""
-        self.base_url = "https://food.ru"
-        # Используем главную страницу рецептов с параметрами
+        self.base_url = "https://www.edimdoma.ru"
         self.recipes_url = f"{self.base_url}/recipes"
         
-        # Резервные рецепты (расширенный список)
-        self.fallback_recipes = [
+        # Резервные рецепты (на случай недоступности сайта)
+        self.fallback_recipes = self._get_fallback_recipes()
+
+    def _get_fallback_recipes(self) -> List[Dict]:
+        """Возвращает список резервных рецептов."""
+        return [
             {
                 "title": "🍰 Классический бисквит",
                 "ingredients": "• Яйца — 4 шт\n• Сахар — 150 г\n• Мука — 150 г\n• Ванильный сахар — 1 ч.л.",
@@ -80,96 +83,69 @@ class RecipeService:
                 "title": "🍫 Брауни шоколадный",
                 "ingredients": "• Шоколад тёмный — 200 г\n• Масло сливочное — 150 г\n• Сахар — 200 г\n• Яйца — 3 шт\n• Мука — 100 г\n• Какао — 30 г",
                 "instructions": "1. Шоколад с маслом растопить на водяной бане.\n2. Добавить сахар и яйца, перемешать.\n3. Добавить муку и какао.\n4. Выпекать при 180°C 25-30 минут."
+            },
+            {
+                "title": "🥐 Круассаны из слоёного теста",
+                "ingredients": "• Тесто слоёное — 500 г\n• Масло сливочное — 50 г\n• Сахарная пудра — для посыпки",
+                "instructions": "1. Тесто разморозить и раскатать.\n2. Нарезать треугольниками.\n3. Свернуть в круассаны.\n4. Выпекать при 200°C 15-20 минут."
+            },
+            {
+                "title": "🧁 Капкейки с кремом",
+                "ingredients": "• Мука — 180 г\n• Сахар — 150 г\n• Яйца — 2 шт\n• Молоко — 120 мл\n• Масло — 100 г\n• Сливки — 200 мл для крема",
+                "instructions": "1. Взбить масло с сахаром.\n2. Добавить яйца, молоко и муку.\n3. Выпекать при 180°C 20 минут.\n4. Украсить кремом из сливок."
             }
         ]
 
     async def get_random_recipe(self) -> Optional[Dict]:
         """
-        Получение случайного рецепта с food.ru.
+        Получение случайного рецепта с edimdoma.ru.
         """
         try:
-            # Пробуем получить рецепты с главной страницы
-            logger.info("🔍 Ищем рецепты на food.ru...")
+            logger.info("🔍 Ищем рецепты на edimdoma.ru...")
             
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.recipes_url, timeout=10.0) as response:
-                    if response.status != 200:
-                        logger.warning(f"⚠️ food.ru не отвечает (статус: {response.status})")
-                        return self._get_fallback_recipe()
-
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'lxml')
-
-                    # Ищем ссылки на рецепты
-                    recipe_links = []
-                    
-                    # Ищем все ссылки на рецепты
-                    for a in soup.find_all('a', href=True):
-                        href = a.get('href', '')
-                        if href and '/recipes/' in href and href not in recipe_links:
-                            # Исключаем категории и пагинацию
-                            if '?' not in href or 'recipe' in href:
-                                if href.startswith('/'):
-                                    href = f"{self.base_url}{href}"
-                                # Проверяем, что это рецепт (не категория)
-                                if '/recipes/' in href and 'recipe' in href:
-                                    # Исключаем корневые страницы
-                                    if href != self.recipes_url and href != f"{self.recipes_url}/":
-                                        recipe_links.append(href)
-
-                    # Если ссылок нет, пробуем другую страницу
-                    if not recipe_links:
-                        logger.info("🔍 Пробуем страницу рецептов с параметрами")
-                        return await self._get_recipe_from_url(f"{self.base_url}/recipes?page=1")
-
-                    if not recipe_links:
-                        logger.warning("⚠️ Рецепты не найдены на food.ru")
-                        return self._get_fallback_recipe()
-
-                    # Выбираем случайный рецепт
-                    random_link = random.choice(recipe_links)
-                    logger.info(f"📖 Выбран рецепт: {random_link}")
-
-                    recipe = await self._parse_recipe(random_link)
-                    if recipe and recipe.get('title'):
-                        return recipe
-                    else:
-                        return self._get_fallback_recipe()
-
-        except Exception as e:
-            logger.error(f"❌ Ошибка при получении рецепта: {e}")
+            # Пробуем несколько страниц с рецептами выпечки
+            urls_to_try = [
+                f"{self.base_url}/recepty/deserty",      # Десерты
+                f"{self.base_url}/recepty/pirogi",       # Пироги
+                f"{self.base_url}/recepty/pechenie",     # Печенье
+                f"{self.base_url}/recepty/torty",        # Торты
+                f"{self.base_url}/recepty/keksy",        # Кексы
+                f"{self.base_url}/recepty/pirozhnye",    # Пирожные
+            ]
+            
+            # Перемешиваем URL для случайности
+            random.shuffle(urls_to_try)
+            
+            for url in urls_to_try[:3]:  # Пробуем первые 3
+                logger.info(f"🔍 Пробуем: {url}")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=10.0) as response:
+                        if response.status == 200:
+                            html = await response.text()
+                            soup = BeautifulSoup(html, 'lxml')
+                            
+                            # Ищем ссылки на рецепты
+                            recipe_links = []
+                            for a in soup.find_all('a', href=True):
+                                href = a.get('href', '')
+                                if href and '/recepty/' in href and href not in recipe_links:
+                                    # Исключаем категории
+                                    if '/recepty/' in href and '?' not in href and len(href.split('/')) > 3:
+                                        if not href.startswith('http'):
+                                            href = f"{self.base_url}{href}"
+                                        if href != url:
+                                            recipe_links.append(href)
+                            
+                            if recipe_links:
+                                random_link = random.choice(recipe_links)
+                                logger.info(f"📖 Выбран рецепт: {random_link}")
+                                recipe = await self._parse_recipe(random_link)
+                                if recipe and recipe.get('title'):
+                                    return recipe
+            
+            # Если ничего не нашли
+            logger.warning("⚠️ Не удалось получить рецепты с edimdoma.ru")
             return self._get_fallback_recipe()
-
-    async def _get_recipe_from_url(self, url: str) -> Optional[Dict]:
-        """
-        Получение рецепта с конкретного URL.
-        """
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=10.0) as response:
-                    if response.status != 200:
-                        return self._get_fallback_recipe()
-
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'lxml')
-
-                    recipe_links = []
-                    for a in soup.find_all('a', href=True):
-                        href = a.get('href', '')
-                        if href and '/recipes/' in href and href not in recipe_links:
-                            if '?' not in href or 'recipe' in href:
-                                if href.startswith('/'):
-                                    href = f"{self.base_url}{href}"
-                                if '/recipes/' in href and 'recipe' in href:
-                                    if href != url and href != f"{self.recipes_url}/":
-                                        recipe_links.append(href)
-
-                    if not recipe_links:
-                        return self._get_fallback_recipe()
-
-                    random_link = random.choice(recipe_links)
-                    recipe = await self._parse_recipe(random_link)
-                    return recipe if recipe else self._get_fallback_recipe()
 
         except Exception as e:
             logger.error(f"❌ Ошибка при получении рецепта: {e}")
@@ -177,7 +153,7 @@ class RecipeService:
 
     async def _parse_recipe(self, url: str) -> Optional[Dict]:
         """
-        Парсинг деталей рецепта с food.ru.
+        Парсинг деталей рецепта с edimdoma.ru.
         """
         try:
             async with aiohttp.ClientSession() as session:
@@ -201,13 +177,13 @@ class RecipeService:
                     # Ингредиенты
                     ingredients = []
                     
-                    # Ищем через ul/li
+                    # Ищем список ингредиентов
                     for ul in soup.find_all('ul'):
                         items = ul.find_all('li')
                         if items and len(items) > 1:
                             for li in items:
                                 text = li.text.strip()
-                                if text and len(text) > 2 and not text.startswith('http'):
+                                if text and len(text) > 2:
                                     ingredients.append(text)
                             if len(ingredients) > 2:
                                 break
@@ -215,7 +191,7 @@ class RecipeService:
                     # Инструкции
                     instructions = []
                     
-                    # Ищем через ol/li
+                    # Ищем нумерованный список или параграфы с инструкциями
                     for ol in soup.find_all('ol'):
                         for li in ol.find_all('li'):
                             text = li.text.strip()
@@ -224,18 +200,14 @@ class RecipeService:
                         if len(instructions) > 2:
                             break
 
-                    # Если нет ингредиентов или инструкций - пробуем найти в div
-                    if not ingredients or not instructions:
-                        content = soup.find('main') or soup.find('article') or soup
-                        if content:
-                            # Ищем в параграфах
-                            for p in content.find_all('p'):
-                                text = p.text.strip()
-                                if text and len(text) > 10:
-                                    if not ingredients and ('г' in text or 'мл' in text):
-                                        ingredients.append(text)
-                                    elif not instructions and len(text) > 20:
-                                        instructions.append(text)
+                    # Если нет ol - ищем параграфы с цифрами
+                    if not instructions:
+                        for p in soup.find_all('p'):
+                            text = p.text.strip()
+                            if text and len(text) > 10 and any(c.isdigit() for c in text[:10]):
+                                instructions.append(text)
+                            if len(instructions) > 3:
+                                break
 
                     ingredients_text = "\n".join(
                         [f"• {i}" for i in ingredients[:10]]
@@ -246,7 +218,7 @@ class RecipeService:
                     ) if instructions else "Инструкции не найдены"
 
                     return {
-                        "title": title or "Рецепт с food.ru",
+                        "title": title or "Рецепт с edimdoma.ru",
                         "ingredients": ingredients_text,
                         "instructions": instructions_text,
                         "url": url
