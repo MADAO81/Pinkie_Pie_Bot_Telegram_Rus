@@ -4,7 +4,7 @@
 Только сладости и выпечка.
 
 Автор: MADAO81
-Версия: 3.1
+Версия: 3.2
 """
 
 import logging
@@ -26,28 +26,73 @@ class RecipeService:
     def __init__(self):
         """Инициализация сервиса рецептов."""
         self.base_url = "https://food.ru"
-        # Категории: торты, пирожные, печенье, кексы, пироги
-        self.categories = [
-            "/categories/deserts/torti",      # Торты
-            "/categories/deserts/pirozhnye",  # Пирожные
-            "/categories/deserts/pechene",    # Печенье
-            "/categories/deserts/keksy",      # Кексы
-            "/categories/deserts/pirogi",     # Пироги
-            "/categories/deserts/deserti"     # Десерты
+        # Используем главную страницу рецептов с параметрами
+        self.recipes_url = f"{self.base_url}/recipes"
+        
+        # Резервные рецепты (расширенный список)
+        self.fallback_recipes = [
+            {
+                "title": "🍰 Классический бисквит",
+                "ingredients": "• Яйца — 4 шт\n• Сахар — 150 г\n• Мука — 150 г\n• Ванильный сахар — 1 ч.л.",
+                "instructions": "1. Яйца взбить с сахаром до пышной светлой массы.\n2. Добавить муку и ванильный сахар, аккуратно перемешать.\n3. Выпекать при 180°C 30-35 минут."
+            },
+            {
+                "title": "🧁 Шоколадные кексы",
+                "ingredients": "• Мука — 200 г\n• Сахар — 150 г\n• Какао — 40 г\n• Яйца — 2 шт\n• Молоко — 200 мл\n• Масло — 80 мл",
+                "instructions": "1. Смешать сухие ингредиенты.\n2. Добавить яйца, молоко и масло.\n3. Перемешать до однородности.\n4. Выпекать при 180°C 20-25 минут."
+            },
+            {
+                "title": "🥞 Блины на молоке",
+                "ingredients": "• Мука — 250 г\n• Молоко — 500 мл\n• Яйца — 2 шт\n• Сахар — 2 ст.л.\n• Соль — 0,5 ч.л.",
+                "instructions": "1. Яйца взбить с сахаром и солью.\n2. Добавить молоко и муку, перемешать.\n3. Добавить масло, дать постоять 15 минут.\n4. Жарить на разогретой сковороде."
+            },
+            {
+                "title": "🍪 Овсяное печенье",
+                "ingredients": "• Масло — 100 г\n• Сахар — 100 г\n• Яйцо — 1 шт\n• Овсяные хлопья — 150 г\n• Мука — 100 г",
+                "instructions": "1. Масло растереть с сахаром.\n2. Добавить яйцо, перемешать.\n3. Добавить хлопья и муку.\n4. Выпекать при 180°C 15-20 минут."
+            },
+            {
+                "title": "🧇 Вафли хрустящие",
+                "ingredients": "• Мука — 250 г\n• Молоко — 300 мл\n• Яйца — 2 шт\n• Масло растительное — 100 мл\n• Сахар — 80 г",
+                "instructions": "1. Смешать сухие ингредиенты.\n2. Добавить молоко, яйца и масло.\n3. Перемешать до однородности.\n4. Выпекать в вафельнице до золотистого цвета."
+            },
+            {
+                "title": "🧁 Маффины с черникой",
+                "ingredients": "• Мука — 250 г\n• Сахар — 150 г\n• Яйцо — 2 шт\n• Молоко — 200 мл\n• Масло — 80 мл\n• Черника — 150 г",
+                "instructions": "1. Смешать сухие ингредиенты.\n2. Добавить яйца, молоко и масло.\n3. Аккуратно добавить чернику.\n4. Выпекать при 180°C 20-25 минут."
+            },
+            {
+                "title": "🍰 Медовик классический",
+                "ingredients": "• Мёд — 100 г\n• Сахар — 150 г\n• Яйца — 2 шт\n• Мука — 300 г\n• Сода — 1 ч.л.\n• Сметана — 400 г для крема",
+                "instructions": "1. Мёд, сахар и яйца нагреть на водяной бане.\n2. Добавить муку и соду, замесить тесто.\n3. Разделить на коржи, выпекать при 180°C 5-7 минут.\n4. Прослоить кремом из сметаны с сахаром."
+            },
+            {
+                "title": "🍩 Пончики дрожжевые",
+                "ingredients": "• Мука — 500 г\n• Молоко — 250 мл\n• Дрожжи — 10 г\n• Яйцо — 1 шт\n• Сахар — 80 г\n• Масло сливочное — 50 г",
+                "instructions": "1. Дрожжи растворить в тёплом молоке.\n2. Добавить яйцо, сахар, масло и муку.\n3. Замесить тесто, дать подойти.\n4. Сформировать пончики, обжарить во фритюре."
+            },
+            {
+                "title": "🥧 Шарлотка с яблоками",
+                "ingredients": "• Яйца — 3 шт\n• Сахар — 150 г\n• Мука — 150 г\n• Яблоки — 3-4 шт\n• Корица — по вкусу",
+                "instructions": "1. Яйца взбить с сахаром до пены.\n2. Добавить муку, перемешать.\n3. Яблоки нарезать, выложить в форму.\n4. Залить тестом, выпекать при 180°C 30 минут."
+            },
+            {
+                "title": "🍫 Брауни шоколадный",
+                "ingredients": "• Шоколад тёмный — 200 г\n• Масло сливочное — 150 г\n• Сахар — 200 г\n• Яйца — 3 шт\n• Мука — 100 г\n• Какао — 30 г",
+                "instructions": "1. Шоколад с маслом растопить на водяной бане.\n2. Добавить сахар и яйца, перемешать.\n3. Добавить муку и какао.\n4. Выпекать при 180°C 25-30 минут."
+            }
         ]
 
     async def get_random_recipe(self) -> Optional[Dict]:
         """
-        Получение случайного рецепта сладостей с food.ru.
+        Получение случайного рецепта с food.ru.
         """
         try:
-            # Выбираем случайную категорию
-            category = random.choice(self.categories)
-            url = f"{self.base_url}{category}"
-            logger.info(f"🔍 Ищем рецепты в категории: {category}")
-
+            # Пробуем получить рецепты с главной страницы
+            logger.info("🔍 Ищем рецепты на food.ru...")
+            
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=10.0) as response:
+                async with session.get(self.recipes_url, timeout=10.0) as response:
                     if response.status != 200:
                         logger.warning(f"⚠️ food.ru не отвечает (статус: {response.status})")
                         return self._get_fallback_recipe()
@@ -58,21 +103,24 @@ class RecipeService:
                     # Ищем ссылки на рецепты
                     recipe_links = []
                     
-                    # Ищем карточки рецептов
-                    for card in soup.find_all('a', href=True):
-                        href = card.get('href', '')
+                    # Ищем все ссылки на рецепты
+                    for a in soup.find_all('a', href=True):
+                        href = a.get('href', '')
                         if href and '/recipes/' in href and href not in recipe_links:
-                            # Проверяем, что это не категория
-                            if '?page=' not in href and 'category' not in href:
+                            # Исключаем категории и пагинацию
+                            if '?' not in href or 'recipe' in href:
                                 if href.startswith('/'):
                                     href = f"{self.base_url}{href}"
-                                if 'recipe' in href:
-                                    recipe_links.append(href)
-                    
-                    # Если ссылок мало, пробуем страницу с рецептами
-                    if len(recipe_links) < 5:
-                        logger.info("🔍 Пробуем страницу рецептов")
-                        recipe_links = await self._get_recipe_links_from_page()
+                                # Проверяем, что это рецепт (не категория)
+                                if '/recipes/' in href and 'recipe' in href:
+                                    # Исключаем корневые страницы
+                                    if href != self.recipes_url and href != f"{self.recipes_url}/":
+                                        recipe_links.append(href)
+
+                    # Если ссылок нет, пробуем другую страницу
+                    if not recipe_links:
+                        logger.info("🔍 Пробуем страницу рецептов с параметрами")
+                        return await self._get_recipe_from_url(f"{self.base_url}/recipes?page=1")
 
                     if not recipe_links:
                         logger.warning("⚠️ Рецепты не найдены на food.ru")
@@ -92,33 +140,40 @@ class RecipeService:
             logger.error(f"❌ Ошибка при получении рецепта: {e}")
             return self._get_fallback_recipe()
 
-    async def _get_recipe_links_from_page(self) -> List[str]:
+    async def _get_recipe_from_url(self, url: str) -> Optional[Dict]:
         """
-        Получение ссылок на рецепты со страницы.
+        Получение рецепта с конкретного URL.
         """
         try:
-            url = f"{self.base_url}/recipes"
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=10.0) as response:
                     if response.status != 200:
-                        return []
+                        return self._get_fallback_recipe()
 
                     html = await response.text()
                     soup = BeautifulSoup(html, 'lxml')
-                    
-                    links = []
+
+                    recipe_links = []
                     for a in soup.find_all('a', href=True):
                         href = a.get('href', '')
-                        if href and '/recipes/' in href and href not in links:
-                            if '?page=' not in href and 'category' not in href:
+                        if href and '/recipes/' in href and href not in recipe_links:
+                            if '?' not in href or 'recipe' in href:
                                 if href.startswith('/'):
                                     href = f"{self.base_url}{href}"
-                                if 'recipe' in href:
-                                    links.append(href)
-                    return links
+                                if '/recipes/' in href and 'recipe' in href:
+                                    if href != url and href != f"{self.recipes_url}/":
+                                        recipe_links.append(href)
+
+                    if not recipe_links:
+                        return self._get_fallback_recipe()
+
+                    random_link = random.choice(recipe_links)
+                    recipe = await self._parse_recipe(random_link)
+                    return recipe if recipe else self._get_fallback_recipe()
+
         except Exception as e:
-            logger.error(f"❌ Ошибка при получении ссылок: {e}")
-            return []
+            logger.error(f"❌ Ошибка при получении рецепта: {e}")
+            return self._get_fallback_recipe()
 
     async def _parse_recipe(self, url: str) -> Optional[Dict]:
         """
@@ -145,82 +200,42 @@ class RecipeService:
 
                     # Ингредиенты
                     ingredients = []
-                    ingr_section = soup.find('div', class_=lambda x: x and ('ingredient' in x.lower() or 'ingr' in x.lower()) if x else None)
                     
-                    if ingr_section:
-                        for li in ingr_section.find_all('li'):
-                            text = li.text.strip()
-                            if text and len(text) > 2:
-                                ingredients.append(text)
-                    
-                    # Если не нашли через класс, ищем через ul
-                    if not ingredients:
-                        for ul in soup.find_all('ul'):
-                            items = ul.find_all('li')
-                            if items and len(items) > 2:
-                                # Проверяем, что это ингредиенты (есть цифры или граммы)
-                                for li in items[:10]:
-                                    text = li.text.strip()
-                                    if text and len(text) > 3:
-                                        ingredients.append(text)
-                                if len(ingredients) > 2:
-                                    break
+                    # Ищем через ul/li
+                    for ul in soup.find_all('ul'):
+                        items = ul.find_all('li')
+                        if items and len(items) > 1:
+                            for li in items:
+                                text = li.text.strip()
+                                if text and len(text) > 2 and not text.startswith('http'):
+                                    ingredients.append(text)
+                            if len(ingredients) > 2:
+                                break
 
                     # Инструкции
                     instructions = []
-                    inst_section = soup.find('div', class_=lambda x: x and ('instruction' in x.lower() or 'step' in x.lower()) if x else None)
                     
-                    if inst_section:
-                        for p in inst_section.find_all('p'):
-                            text = p.text.strip()
+                    # Ищем через ol/li
+                    for ol in soup.find_all('ol'):
+                        for li in ol.find_all('li'):
+                            text = li.text.strip()
                             if text and len(text) > 5:
                                 instructions.append(text)
-                    
-                    # Если не нашли через класс, ищем через ol
-                    if not instructions:
-                        for ol in soup.find_all('ol'):
-                            for li in ol.find_all('li'):
-                                text = li.text.strip()
-                                if text and len(text) > 5:
-                                    instructions.append(text)
-                            if len(instructions) > 2:
-                                break
+                        if len(instructions) > 2:
+                            break
 
-                    # Если нет инструкций — ищем любой текст
-                    if not instructions:
-                        content = soup.find('div', class_='content') or soup.find('article') or soup
-                        for p in content.find_all('p') if content else []:
-                            text = p.text.strip()
-                            if text and len(text) > 20 and not text.startswith('Подписаться'):
-                                instructions.append(text)
-                            if len(instructions) > 3:
-                                break
-
-                    # Проверяем, что это рецепт сладостей
-                    if title and ('торт' in title.lower() or 
-                                 'пирож' in title.lower() or 
-                                 'печень' in title.lower() or 
-                                 'кекс' in title.lower() or 
-                                 'десерт' in title.lower() or
-                                 'маффин' in title.lower() or
-                                 'капкейк' in title.lower() or
-                                 'сладк' in title.lower() or
-                                 'шоколад' in title.lower() or
-                                 'конфет' in title.lower()):
-                        pass  # Это сладость
-                    elif title:
-                        # Если название не содержит явных признаков сладости
-                        # Проверяем ингредиенты
-                        sweet_words = ['сахар', 'мука', 'шоколад', 'крем', 'сгущенк', 'варенье', 'джем', 'мед']
-                        if ingredients:
-                            ingr_text = ' '.join(ingredients).lower()
-                            for word in sweet_words:
-                                if word in ingr_text:
-                                    break
-                            else:
-                                # Если нет сладких ингредиентов — пропускаем
-                                logger.warning(f"⚠️ Рецепт пропущен (не сладость): {title}")
-                                return self._get_fallback_recipe()
+                    # Если нет ингредиентов или инструкций - пробуем найти в div
+                    if not ingredients or not instructions:
+                        content = soup.find('main') or soup.find('article') or soup
+                        if content:
+                            # Ищем в параграфах
+                            for p in content.find_all('p'):
+                                text = p.text.strip()
+                                if text and len(text) > 10:
+                                    if not ingredients and ('г' in text or 'мл' in text):
+                                        ingredients.append(text)
+                                    elif not instructions and len(text) > 20:
+                                        instructions.append(text)
 
                     ingredients_text = "\n".join(
                         [f"• {i}" for i in ingredients[:10]]
@@ -243,28 +258,6 @@ class RecipeService:
 
     def _get_fallback_recipe(self) -> Dict:
         """Возвращает случайный резервный рецепт."""
-        recipes = [
-            {
-                "title": "🍰 Классический бисквит",
-                "ingredients": "• Яйца — 4 шт\n• Сахар — 150 г\n• Мука — 150 г\n• Ванильный сахар — 1 ч.л.",
-                "instructions": "1. Яйца взбить с сахаром до пышной светлой массы.\n2. Добавить муку и ванильный сахар, аккуратно перемешать.\n3. Выпекать при 180°C 30-35 минут."
-            },
-            {
-                "title": "🧁 Шоколадные кексы",
-                "ingredients": "• Мука — 200 г\n• Сахар — 150 г\n• Какао — 40 г\n• Яйца — 2 шт\n• Молоко — 200 мл\n• Масло — 80 мл",
-                "instructions": "1. Смешать сухие ингредиенты.\n2. Добавить яйца, молоко и масло.\n3. Перемешать до однородности.\n4. Выпекать при 180°C 20-25 минут."
-            },
-            {
-                "title": "🥞 Блины на молоке",
-                "ingredients": "• Мука — 250 г\n• Молоко — 500 мл\n• Яйца — 2 шт\n• Сахар — 2 ст.л.\n• Соль — 0,5 ч.л.",
-                "instructions": "1. Яйца взбить с сахаром и солью.\n2. Добавить молоко и муку, перемешать.\n3. Добавить масло, дать постоять 15 минут.\n4. Жарить на разогретой сковороде."
-            },
-            {
-                "title": "🍪 Овсяное печенье",
-                "ingredients": "• Масло — 100 г\n• Сахар — 100 г\n• Яйцо — 1 шт\n• Овсяные хлопья — 150 г\n• Мука — 100 г",
-                "instructions": "1. Масло растереть с сахаром.\n2. Добавить яйцо, перемешать.\n3. Добавить хлопья и муку.\n4. Выпекать при 180°C 15-20 минут."
-            }
-        ]
-        recipe = random.choice(recipes)
+        recipe = random.choice(self.fallback_recipes)
         logger.info(f"📖 Использован резервный рецепт: {recipe['title']}")
         return recipe
