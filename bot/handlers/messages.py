@@ -75,6 +75,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user_message = update.message.text
 
+        # Проверяем, спрашивает ли пользователь о погоде
+        weather_keywords = ["погода", "weather", "за окном", "температура", "дождь", "солнце", "градус", "ветер", "холодно", "тепло", "метео"]
+        is_weather_query = any(keyword in user_message.lower() for keyword in weather_keywords)
+
+        # Если спрашивают погоду — отвечаем только погодой
+        if is_weather_query:
+            weather = await weather_service.get_weather()
+            if weather:
+                weather_text = weather_service.get_weather_text(weather)
+                response = f"🌤️ *Погода в Ворсино*\n\n{weather_text}"
+            else:
+                response = "😅 Не могу узнать погоду! Попробуй позже! 🌧️"
+            
+            await status_message.delete()
+            await update.message.reply_text(response, parse_mode="Markdown")
+            return
+
         # Определяем настроение
         mood, weather = await mood_system.determine_mood()
         mood_desc = "грустное" if mood == "sad" else "весёлое"
@@ -91,12 +108,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not response:
             response = "😅 Ой-ой-ой! Что-то у меня мозги закипели!\nДавай попробуем ещё раз? 🎈"
-
-        # Добавляем погоду только если пользователь спрашивает
-        weather_keywords = ["погода", "weather", "за окном", "температура", "дождь", "солнце", "градус", "ветер", "холодно", "тепло", "метео"]
-        if any(keyword in user_message.lower() for keyword in weather_keywords):
-            weather_text = weather_service.get_weather_text(weather)
-            response += f"\n\n{weather_text}"
 
         await status_message.delete()
 
