@@ -1,7 +1,7 @@
 # bot/handlers/commands.py
 """
 Обработчики команд бота Пинки Пай:
-/start, /help, /recipe, /joke, /song, /weather
+/start, /help, /recipe, /joke, /song, /weather, /subscribe, /unsubscribe
 
 Автор: MADAO81
 Версия: 2.0
@@ -45,7 +45,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/recipe — получить рецепт выпечки 🧁\n"
         f"/joke — услышать шутку 😄\n"
         f"/song — послушать песенку 🎵\n"
-        f"/weather — узнать погоду 🌤️\n\n"
+        f"/weather — узнать погоду 🌤️\n"
+        f"/subscribe — подписаться на ежедневные рецепты 🧁\n"
+        f"/unsubscribe — отписаться от рецептов 😢\n\n"
         f"Просто напиши мне что-нибудь, и мы поболтаем! 💖\n\n"
         f"🤖 *Версия:* {VERSION}"
     )
@@ -67,7 +69,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/recipe — случайный рецепт выпечки 🧁\n"
         "/joke — весёлая шутка 😄\n"
         "/song — песенка от Пинки Пай 🎵\n"
-        "/weather — погода в любом городе 🌤️\n\n"
+        "/weather — погода в любом городе 🌤️\n"
+        "/subscribe — подписаться на ежедневные рецепты 🧁\n"
+        "/unsubscribe — отписаться от рецептов 😢\n\n"
         "✨ *Особенности:*\n"
         "• Я работаю с 9:00 до 20:00 ежедневно\n"
         "• Если на улице дождь — могу немного погрустить 🌧️\n"
@@ -169,7 +173,6 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(get_working_status_message())
         return
 
-    # Получаем аргументы команды (город)
     args = context.args
     city = " ".join(args) if args else None
 
@@ -177,7 +180,6 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if city:
-            # Погода для указанного города
             weather = await weather_service.get_weather_by_city(city)
             if not weather:
                 await status_message.edit_text(
@@ -186,13 +188,11 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
         else:
-            # Погода по умолчанию (Ворсино)
             weather = await weather_service.get_weather()
 
         if weather:
             weather_text = weather_service.get_weather_text(weather)
             
-            # Добавляем дополнительные детали
             details = (
                 f"\n\n📊 *Подробнее:*\n"
                 f"💧 Влажность: {weather.get('humidity', '?')}%\n"
@@ -202,7 +202,6 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             full_text = f"🌤️ *Погода*\n\n{weather_text}{details}"
             
-            # Определяем настроение для Ворсино (только для погоды по умолчанию)
             if not city:
                 mood, _ = await mood_system.determine_mood()
                 if mood == "sad":
@@ -215,7 +214,7 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await status_message.edit_text(
                 "😅 Ой-ой! Не могу узнать погоду!\n"
-                "Проверь, правильно ли настроен API OpenWeatherMap! 🌧️"
+                "Попробуй позже! 🌧️"
             )
             
     except Exception as e:
@@ -228,11 +227,22 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Подписка на ежедневные рецепты."""
-    from bot.core.scheduler import add_chat
     chat_id = update.message.chat_id
     add_chat(chat_id)
     await update.message.reply_text(
         "🧁 *Ты подписался на ежедневные рецепты!*\n\n"
         "Каждый день в 12:00 я буду присылать тебе вкусный рецепт выпечки! 🎂\n\n"
-        "Чтобы отписаться, напиши /unsubscribe 😢"
+        "Чтобы отписаться, напиши /unsubscribe 😢",
+        parse_mode="Markdown"
+    )
+
+
+async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отписка от ежедневных рецептов."""
+    chat_id = update.message.chat_id
+    remove_chat(chat_id)
+    await update.message.reply_text(
+        "😢 *Ты отписался от ежедневных рецептов!*\n\n"
+        "Если захочешь вернуться — напиши /subscribe 🧁",
+        parse_mode="Markdown"
     )
