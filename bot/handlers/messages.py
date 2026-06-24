@@ -5,7 +5,7 @@
 Поддерживает запросы погоды в любом городе (с падежами).
 
 Автор: MADAO81
-Версия: 2.3
+Версия: 2.4
 """
 
 import logging
@@ -28,13 +28,12 @@ context_manager = ContextManager()
 
 def normalize_city_name(city: str) -> str:
     """
-    Приводит название города к именительному падежу.
-    Поддерживает любые русские города через универсальные правила.
+    Приводит название города к именительному падежу (для поиска в API).
     """
     city = city.strip()
     city_lower = city.lower()
     
-    # ===== 1. ТОЧНЫЕ ЗАМЕНЫ ДЛЯ ИЗВЕСТНЫХ ГОРОДОВ =====
+    # Точные замены для известных городов
     replacements = {
         'москве': 'Москва',
         'москвы': 'Москва',
@@ -85,8 +84,7 @@ def normalize_city_name(city: str) -> str:
     if city_lower in replacements:
         return replacements[city_lower]
     
-    # ===== 2. УНИВЕРСАЛЬНОЕ ПРАВИЛО =====
-    # Для города в предложном падеже: 'е' -> 'а' или 'я'
+    # Универсальное правило: убираем окончания падежей
     if city_lower.endswith('е') and len(city) > 2:
         if city_lower.endswith('ие'):
             return city[:-2] + 'ия'
@@ -97,7 +95,6 @@ def normalize_city_name(city: str) -> str:
             else:
                 return base + 'я'
     
-    # Родительный падеж: 'ы' -> 'а' или 'я'
     elif city_lower.endswith('ы') and len(city) > 2:
         base = city[:-1]
         if base[-1] in 'бвгджзйклмнпрстфхцчшщ':
@@ -105,7 +102,6 @@ def normalize_city_name(city: str) -> str:
         else:
             return base + 'я'
     
-    # Дательный падеж: 'у' -> 'а' или 'я'
     elif city_lower.endswith('у') and len(city) > 2:
         base = city[:-1]
         if base[-1] in 'бвгджзйклмнпрстфхцчшщ':
@@ -113,7 +109,6 @@ def normalize_city_name(city: str) -> str:
         else:
             return base + 'я'
     
-    # Творительный падеж: 'ой' или 'ем'
     elif city_lower.endswith('ой') and len(city) > 3:
         base = city[:-2]
         if base[-1] in 'бвгджзйклмнпрстфхцчшщ':
@@ -128,11 +123,9 @@ def normalize_city_name(city: str) -> str:
         else:
             return base + 'я'
     
-    # Дательный для мягких: 'ю' -> 'я'
     elif city_lower.endswith('ю') and len(city) > 2:
         return city[:-1] + 'я'
     
-    # Родительный для мягких: 'я' -> 'я'
     elif city_lower.endswith('я') and len(city) > 2:
         return city
     
@@ -142,9 +135,6 @@ def normalize_city_name(city: str) -> str:
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработка текстовых сообщений.
-    Реагирует только если:
-    - сообщение адресовано боту (@username или ответ на сообщение бота)
-    - или с вероятностью 20% (каждое 5-е сообщение)
     """
     if not is_working_hours():
         if update.message.chat.type == "private":
@@ -184,7 +174,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if is_weather_query:
             # Пытаемся найти город в сообщении
-            city = None
+            city_normalized = None  # для поиска в API
+            city_original = None    # для отображения пользователю
             
             patterns = [
                 r'в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
@@ -196,23 +187,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for pattern in patterns:
                 match = re.search(pattern, user_message, re.IGNORECASE)
                 if match:
-                    city = match.group(1).strip()
-                    city = re.sub(r'[.,!?;:]+$', '', city)
-                    # Приводим к именительному падежу
-                    city = normalize_city_name(city)
+                    city_original = match.group(1).strip()
+                    city_original = re.sub(r'[.,!?;:]+$', '', city_original)
+                    # Нормализуем для поиска в API
+                    city_normalized = normalize_city_name(city_original)
                     break
             
-            # Если город найден и это не Ворсино/Боровск — показываем погоду в городе
-            if city and city.lower() not in ["ворсино", "боровск", "ворсино."]:
-                logger.info(f"🌍 Запрошен город (нормализован): {city}")
-                weather = await weather_service.get_weather_by_city(city)
+            # Если город найден и это не Ворсино/Боровск
+            if city_normalized and city_normalized.lower() not in ["ворсино", "боровск", "ворсино."]:
+                logger.info(f"🌍 Запрошен город: {city_original} (нормализован: {city_normalized})")
+                weather = await weather_service.get_weather_by_city(city_normalized)
                 if weather:
-                    # Используем оригинальное название из API
-                    city_name = weather.get('city_name', city)
                     weather_text = weather_service.get_weather_text(weather)
-                    response = f"🌤️ *Погода в {city_name}*\n\n{weather_text}"
+                    # Используем ОРИГИНАЛЬНОЕ название города (с падежом)
+                    response = f"🌤️ *Погода в {city_original}*\n\n{weather_text}"
                 else:
-                    response = f"😅 Не могу найти город '{city}'! Попробуй написать название на русском или английском. 🌧️"
+                    response = f"😅 Не могу найти город '{city_original}'! Попробуй написать название на русском или английском. 🌧️"
             else:
                 # По умолчанию — Ворсино
                 weather = await weather_service.get_weather()
