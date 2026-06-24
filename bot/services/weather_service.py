@@ -1,4 +1,3 @@
-cat > bot/services/weather_service.py << 'EOF'
 # bot/services/weather_service.py
 """
 Сервис для работы с погодой через Open-Meteo (бесплатно, без ключа).
@@ -216,4 +215,3 @@ class WeatherService:
         emoji = "☀️" if not weather_data.get("is_bad", False) else "🌧️"
 
         return f"{emoji} В {city} сейчас {description}, {temp}°C, ветер {wind} м/с"
-EOF
