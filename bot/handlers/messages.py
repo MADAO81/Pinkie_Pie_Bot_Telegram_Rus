@@ -2,13 +2,15 @@
 """
 Обработчик текстовых сообщений бота Пинки Пай.
 Реагирует только на упоминания или с вероятностью 20%.
+Поддерживает запросы погоды в любом городе.
 
 Автор: MADAO81
-Версия: 2.0
+Версия: 2.1
 """
 
 import logging
 import random
+import re
 from telegram import Update
 from telegram.ext import ContextTypes
 from bot.core.mood_system import MoodSystem
@@ -75,23 +77,53 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user_message = update.message.text
 
-        # Проверяем, спрашивает ли пользователь о погоде
+        # === ПРОВЕРКА НА ЗАПРОС ПОГОДЫ ===
         weather_keywords = ["погода", "weather", "за окном", "температура", "дождь", "солнце", "градус", "ветер", "холодно", "тепло", "метео"]
         is_weather_query = any(keyword in user_message.lower() for keyword in weather_keywords)
 
-        # Если спрашивают погоду — отвечаем только погодой
         if is_weather_query:
-            weather = await weather_service.get_weather()
-            if weather:
-                weather_text = weather_service.get_weather_text(weather)
-                response = f"🌤️ *Погода в Ворсино*\n\n{weather_text}"
+            # Пытаемся найти город в сообщении
+            city = None
+            
+            # Проверяем фразы "в [город]" или "[город]"
+            patterns = [
+                r'в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "в Москве"
+                r'погода\s+в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "погода в Москве"
+                r'погода\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "погода Москва"
+                r'для\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "для Москвы"
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, user_message, re.IGNORECASE)
+                if match:
+                    city = match.group(1).strip()
+                    # Убираем знаки препинания в конце
+                    city = re.sub(r'[.,!?;:]+$', '', city)
+                    break
+            
+            # Если город найден и это не Ворсино/Боровск — показываем погоду в городе
+            if city and city.lower() not in ["ворсино", "боровск", "ворсино."]:
+                logger.info(f"🌍 Запрошен город: {city}")
+                weather = await weather_service.get_weather_by_city(city)
+                if weather:
+                    weather_text = weather_service.get_weather_text(weather)
+                    response = f"🌤️ *Погода в {city.capitalize()}*\n\n{weather_text}"
+                else:
+                    response = f"😅 Не могу найти город '{city}'! Попробуй написать название на русском или английском. 🌧️"
             else:
-                response = "😅 Не могу узнать погоду! Попробуй позже! 🌧️"
+                # По умолчанию — Ворсино
+                weather = await weather_service.get_weather()
+                if weather:
+                    weather_text = weather_service.get_weather_text(weather)
+                    response = f"🌤️ *Погода в Ворсино*\n\n{weather_text}"
+                else:
+                    response = "😅 Не могу узнать погоду! Попробуй позже! 🌧️"
             
             await status_message.delete()
             await update.message.reply_text(response, parse_mode="Markdown")
             return
 
+        # === ОБЫЧНЫЙ ОТВЕТ (не про погоду) ===
         # Определяем настроение
         mood, weather = await mood_system.determine_mood()
         mood_desc = "грустное" if mood == "sad" else "весёлое"
