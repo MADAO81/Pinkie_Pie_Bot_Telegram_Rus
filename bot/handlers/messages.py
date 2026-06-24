@@ -5,7 +5,7 @@
 Поддерживает запросы погоды в любом городе (с падежами).
 
 Автор: MADAO81
-Версия: 2.2
+Версия: 2.3
 """
 
 import logging
@@ -29,31 +29,122 @@ context_manager = ContextManager()
 def normalize_city_name(city: str) -> str:
     """
     Приводит название города к именительному падежу.
+    Поддерживает любые русские города через универсальные правила.
     """
     city = city.strip()
+    city_lower = city.lower()
     
-    # Убираем окончания падежей
-    if city.endswith('е'):      # Москве, Лондоне, Париже
-        city = city[:-1]
-    elif city.endswith('ы'):    # Москвы
-        city = city[:-1]
-    elif city.endswith('у'):    # Лондону
-        city = city[:-1]
-    elif city.endswith('ой'):   # Москвой
-        city = city[:-2]
-    elif city.endswith('ем'):   # Лондоном
-        city = city[:-2]
-    elif city.endswith('ю'):    # Киеву
-        city = city[:-1]
-    elif city.endswith('я'):    # Киева
-        city = city[:-1]
+    # ===== 1. ТОЧНЫЕ ЗАМЕНЫ ДЛЯ ИЗВЕСТНЫХ ГОРОДОВ =====
+    replacements = {
+        'москве': 'Москва',
+        'москвы': 'Москва',
+        'москвой': 'Москва',
+        'москву': 'Москва',
+        'лондоне': 'Лондон',
+        'лондона': 'Лондон',
+        'лондоном': 'Лондон',
+        'лондону': 'Лондон',
+        'берлине': 'Берлин',
+        'берлина': 'Берлин',
+        'берлином': 'Берлин',
+        'берлину': 'Берлин',
+        'париже': 'Париж',
+        'парижа': 'Париж',
+        'парижем': 'Париж',
+        'парижу': 'Париж',
+        'санкт-петербурге': 'Санкт-Петербург',
+        'санкт-петербурга': 'Санкт-Петербург',
+        'петербурге': 'Санкт-Петербург',
+        'риме': 'Рим',
+        'рима': 'Рим',
+        'римом': 'Рим',
+        'риму': 'Рим',
+        'токио': 'Токио',
+        'осаке': 'Осака',
+        'киеве': 'Киев',
+        'минске': 'Минск',
+        'варшаве': 'Варшава',
+        'варшавы': 'Варшава',
+        'варшавой': 'Варшава',
+        'праге': 'Прага',
+        'праги': 'Прага',
+        'прагой': 'Прага',
+        'вене': 'Вена',
+        'афинах': 'Афины',
+        'дубай': 'Дубай',
+        'сидней': 'Сидней',
+        'нью-йорке': 'Нью-Йорк',
+        'нью-йорка': 'Нью-Йорк',
+        'нью-йорком': 'Нью-Йорк',
+        'лос-анджелесе': 'Лос-Анджелес',
+        'шанхае': 'Шанхай',
+        'пекине': 'Пекин',
+        'сеуле': 'Сеул',
+    }
     
-    return city
+    if city_lower in replacements:
+        return replacements[city_lower]
+    
+    # ===== 2. УНИВЕРСАЛЬНОЕ ПРАВИЛО =====
+    # Для города в предложном падеже: 'е' -> 'а' или 'я'
+    if city_lower.endswith('е') and len(city) > 2:
+        if city_lower.endswith('ие'):
+            return city[:-2] + 'ия'
+        else:
+            base = city[:-1]
+            if base[-1] in 'бвгджзйклмнпрстфхцчшщ':
+                return base + 'а'
+            else:
+                return base + 'я'
+    
+    # Родительный падеж: 'ы' -> 'а' или 'я'
+    elif city_lower.endswith('ы') and len(city) > 2:
+        base = city[:-1]
+        if base[-1] in 'бвгджзйклмнпрстфхцчшщ':
+            return base + 'а'
+        else:
+            return base + 'я'
+    
+    # Дательный падеж: 'у' -> 'а' или 'я'
+    elif city_lower.endswith('у') and len(city) > 2:
+        base = city[:-1]
+        if base[-1] in 'бвгджзйклмнпрстфхцчшщ':
+            return base + 'а'
+        else:
+            return base + 'я'
+    
+    # Творительный падеж: 'ой' или 'ем'
+    elif city_lower.endswith('ой') and len(city) > 3:
+        base = city[:-2]
+        if base[-1] in 'бвгджзйклмнпрстфхцчшщ':
+            return base + 'а'
+        else:
+            return base + 'я'
+    
+    elif city_lower.endswith('ем') and len(city) > 3:
+        base = city[:-2]
+        if base[-1] in 'бвгджзйклмнпрстфхцчшщ':
+            return base + 'а'
+        else:
+            return base + 'я'
+    
+    # Дательный для мягких: 'ю' -> 'я'
+    elif city_lower.endswith('ю') and len(city) > 2:
+        return city[:-1] + 'я'
+    
+    # Родительный для мягких: 'я' -> 'я'
+    elif city_lower.endswith('я') and len(city) > 2:
+        return city
+    
+    return city.capitalize()
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработка текстовых сообщений.
+    Реагирует только если:
+    - сообщение адресовано боту (@username или ответ на сообщение бота)
+    - или с вероятностью 20% (каждое 5-е сообщение)
     """
     if not is_working_hours():
         if update.message.chat.type == "private":
@@ -96,10 +187,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             city = None
             
             patterns = [
-                r'в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "в Москве"
-                r'погода\s+в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "погода в Москве"
-                r'погода\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "погода Москва"
-                r'для\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "для Москвы"
+                r'в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
+                r'погода\s+в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
+                r'погода\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
+                r'для\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
             ]
             
             for pattern in patterns:
