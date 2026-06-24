@@ -16,6 +16,7 @@ from bot.services.ai_service import get_pinkie_response
 from bot.services.weather_service import WeatherService
 from bot.utils.time_utils import is_working_hours, get_working_status_message
 from bot.core.constants import VERSION
+from bot.core.scheduler import add_chat, remove_chat, get_active_chats
 
 logger = logging.getLogger(__name__)
 
@@ -223,3 +224,15 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "😅 Упс! Что-то пошло не так при запросе погоды!\n"
             "Попробуй позже! 🌤️"
         )
+
+
+async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Подписка на ежедневные рецепты."""
+    from bot.core.scheduler import add_chat
+    chat_id = update.message.chat_id
+    add_chat(chat_id)
+    await update.message.reply_text(
+        "🧁 *Ты подписался на ежедневные рецепты!*\n\n"
+        "Каждый день в 12:00 я буду присылать тебе вкусный рецепт выпечки! 🎂\n\n"
+        "Чтобы отписаться, напиши /unsubscribe 😢"
+    )
