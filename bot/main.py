@@ -22,7 +22,9 @@ from bot.handlers.commands import (
     recipe_command,
     joke_command,
     song_command,
-    weather_command  # <-- ДОБАВЛЯЕМ
+    weather_command,
+    subscribe_command,
+    unsubscribe_command
 )
 from bot.handlers.messages import handle_message
 from bot.handlers.photos import handle_photo
@@ -36,6 +38,18 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+
+async def log_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Логирует ВСЕ сообщения для отладки."""
+    if update.message:
+        logger.info(f"📨 Сообщение от {update.effective_user.username}:")
+        logger.info(f"   Текст: {update.message.text}")
+        logger.info(f"   Есть фото: {bool(update.message.photo)}")
+        logger.info(f"   Есть документ: {bool(update.message.document)}")
+        logger.info(f"   Есть голосовое: {bool(update.message.voice)}")
+        logger.info(f"   Есть аудио: {bool(update.message.audio)}")
+        logger.info(f"   Есть видео: {bool(update.message.video)}")
 
 
 def main():
@@ -65,7 +79,12 @@ def main():
     app.add_handler(CommandHandler("recipe", recipe_command))
     app.add_handler(CommandHandler("joke", joke_command))
     app.add_handler(CommandHandler("song", song_command))
-    app.add_handler(CommandHandler("weather", weather_command))  # <-- ДОБАВЛЯЕМ
+    app.add_handler(CommandHandler("weather", weather_command))
+    app.add_handler(CommandHandler("subscribe", subscribe_command))
+    app.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
+
+    # УНИВЕРСАЛЬНЫЙ ЛОГГЕР (ДЛЯ ОТЛАДКИ)
+    app.add_handler(MessageHandler(filters.ALL, log_all), group=0)
 
     # Регистрируем обработчики сообщений
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
