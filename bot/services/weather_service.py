@@ -1,10 +1,11 @@
+cat > bot/services/weather_service.py << 'EOF'
 # bot/services/weather_service.py
 """
 Сервис для работы с погодой через Open-Meteo (бесплатно, без ключа).
 Поддерживает любой город по запросу.
 
 Автор: MADAO81
-Версия: 5.0
+Версия: 5.1
 """
 
 import logging
@@ -39,7 +40,7 @@ class WeatherService:
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "current_weather": True,
+                "current_weather": "true",
                 "timezone": "Europe/Moscow",
                 "forecast_days": 1
             }
@@ -129,9 +130,9 @@ class WeatherService:
 
             weather = {
                 "temperature": temperature,
-                "feels_like": temperature,  # Open-Meteo не даёт feels_like
-                "humidity": 0,  # Open-Meteo не даёт влажность в current_weather
-                "pressure": 0,  # Open-Meteo не даёт давление в current_weather
+                "feels_like": temperature,
+                "humidity": 0,
+                "pressure": 0,
                 "wind_speed": wind_speed,
                 "condition": self._get_condition(weather_code),
                 "description": self._translate_condition(weather_code),
@@ -215,3 +216,4 @@ class WeatherService:
         emoji = "☀️" if not weather_data.get("is_bad", False) else "🌧️"
 
         return f"{emoji} В {city} сейчас {description}, {temp}°C, ветер {wind} м/с"
+EOF
