@@ -1,116 +1,144 @@
 # bot/services/weather_service.py
 """
-Сервис для работы с Яндекс Погодой.
-Получение текущей погоды в Боровском районе Калужской области.
+Сервис для работы с погодой через Open-Meteo (бесплатно, без ключа).
+Поддерживает любой город по запросу.
 
 Автор: MADAO81
-Версия: 2.0
+Версия: 5.0
 """
 
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 import aiohttp
 from bot.config import Config
 
-# Настройка логирования
 logger = logging.getLogger(__name__)
 
 
 class WeatherService:
     """
-    Класс для получения погоды через API Яндекс Погоды.
+    Класс для получения погоды через Open-Meteo API (без ключа).
     """
 
     def __init__(self):
         """Инициализация сервиса погоды."""
-        self.api_key = Config.YANDEX_WEATHER_API_KEY
-        self.lat = Config.YANDEX_WEATHER_LAT
-        self.lon = Config.YANDEX_WEATHER_LON
-        self.base_url = "https://api.weather.yandex.ru/v2/forecast"
+        self.default_lat = Config.DEFAULT_LAT
+        self.default_lon = Config.DEFAULT_LON
+        self.base_url = "https://api.open-meteo.com/v1/forecast"
+        self.geo_url = "https://geocoding-api.open-meteo.com/v1/search"
 
-    async def get_weather(self) -> Optional[Dict]:
+    async def get_weather(self, lat: Optional[float] = None, lon: Optional[float] = None) -> Optional[Dict]:
         """
-        Получение текущей погоды через Яндекс Погоду.
-
-        Returns:
-            Optional[Dict]: Данные о погоде или None в случае ошибки
+        Получение текущей погоды по координатам.
         """
-        if not self.api_key:
-            logger.error("❌ YANDEX_WEATHER_API_KEY не найден в .env файле!")
-            return None
+        if lat is None or lon is None:
+            lat = self.default_lat
+            lon = self.default_lon
 
         try:
-            headers = {
-                "X-Yandex-API-Key": self.api_key
-            }
-
             params = {
-                "lat": self.lat,
-                "lon": self.lon,
-                "lang": "ru_RU",
-                "limit": 1
+                "latitude": lat,
+                "longitude": lon,
+                "current_weather": True,
+                "timezone": "Europe/Moscow",
+                "forecast_days": 1
             }
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     self.base_url,
-                    headers=headers,
                     params=params,
                     timeout=10.0
                 ) as response:
-
                     if response.status == 200:
                         data = await response.json()
-                        return self._parse_weather(data)
-                    elif response.status == 403:
-                        logger.error("❌ Ошибка: неверный API ключ Яндекс Погоды")
-                        return None
+                        return self._parse_weather(data, lat, lon)
                     else:
-                        logger.error(f"❌ Ошибка Яндекс Погоды: {response.status}")
+                        logger.error(f"❌ Ошибка Open-Meteo: {response.status}")
                         return None
 
         except aiohttp.ClientError as e:
-            logger.error(f"❌ Ошибка соединения с Яндекс Погодой: {e}")
+            logger.error(f"❌ Ошибка соединения с Open-Meteo: {e}")
             return None
         except Exception as e:
             logger.error(f"❌ Ошибка при получении погоды: {e}")
             return None
 
-    def _parse_weather(self, data: Dict) -> Dict:
+    async def get_weather_by_city(self, city: str) -> Optional[Dict]:
         """
-        Парсинг данных о погоде.
+        Получение погоды по названию города.
+        """
+        if not city:
+            return await self.get_weather()
 
-        Args:
-            data (Dict): Данные от API
+        coords = await self.get_city_coordinates(city)
+        if not coords:
+            logger.warning(f"⚠️ Город не найден: {city}")
+            return None
 
-        Returns:
-            Dict: Обработанные данные о погоде
+        lat, lon = coords
+        weather = await self.get_weather(lat, lon)
+        if weather:
+            weather["city_name"] = city
+        return weather
+
+    async def get_city_coordinates(self, city: str) -> Optional[Tuple[float, float]]:
+        """
+        Получение координат города через Open-Meteo Geocoding API (без ключа).
         """
         try:
-            fact = data.get("fact", {})
-            forecast = data.get("forecasts", [{}])[0]
-
-            weather = {
-                "temperature": fact.get("temp", 0),
-                "feels_like": fact.get("feels_like", 0),
-                "humidity": fact.get("humidity", 0),
-                "pressure": fact.get("pressure_mm", 750),
-                "wind_speed": fact.get("wind_speed", 0),
-                "condition": fact.get("condition", "clear"),
-                "description": self._translate_condition(
-                    fact.get("condition", "clear")
-                ),
-                "is_bad": False
+            params = {
+                "name": city,
+                "count": 1,
+                "language": "ru",
+                "format": "json"
             }
 
-            # Определяем, плохая ли погода
-            bad_conditions = [
-                "rain", "heavy-rain", "snow", "heavy-snow",
-                "sleet", "thunderstorm", "drizzle", "overcast",
-                "rain-and-snow"
-            ]
-            if weather["condition"] in bad_conditions:
-                weather["is_bad"] = True
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    self.geo_url,
+                    params=params,
+                    timeout=10.0
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        results = data.get("results", [])
+                        if results and len(results) > 0:
+                            lat = results[0].get("latitude")
+                            lon = results[0].get("longitude")
+                            if lat and lon:
+                                logger.info(f"🌍 Найдены координаты для {city}: {lat}, {lon}")
+                                return (lat, lon)
+                    logger.warning(f"⚠️ Город '{city}' не найден")
+                    return None
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка при поиске города: {e}")
+            return None
+
+    def _parse_weather(self, data: Dict, lat: float, lon: float) -> Dict:
+        """
+        Парсинг данных о погоде из Open-Meteo.
+        """
+        try:
+            current = data.get("current_weather", {})
+            
+            weather_code = current.get("weathercode", 0)
+            temperature = current.get("temperature", 0)
+            wind_speed = current.get("windspeed", 0)
+
+            weather = {
+                "temperature": temperature,
+                "feels_like": temperature,  # Open-Meteo не даёт feels_like
+                "humidity": 0,  # Open-Meteo не даёт влажность в current_weather
+                "pressure": 0,  # Open-Meteo не даёт давление в current_weather
+                "wind_speed": wind_speed,
+                "condition": self._get_condition(weather_code),
+                "description": self._translate_condition(weather_code),
+                "city_name": "Ворсино" if lat == self.default_lat and lon == self.default_lon else "Неизвестный город",
+                "country": "",
+                "is_bad": self._is_bad_weather(weather_code)
+            }
 
             return weather
 
@@ -124,69 +152,66 @@ class WeatherService:
                 "wind_speed": 0,
                 "condition": "clear",
                 "description": "неизвестно",
+                "city_name": "Неизвестный город",
+                "country": "",
                 "is_bad": False
             }
 
-    def _translate_condition(self, condition: str) -> str:
-        """
-        Перевод условий погоды на русский.
+    def _get_condition(self, code: int) -> str:
+        """Преобразует код погоды Open-Meteo в строку."""
+        if code == 0:
+            return "clear"
+        elif code in [1, 2, 3]:
+            return "cloudy"
+        elif code in [45, 48]:
+            return "fog"
+        elif code in [51, 53, 55, 56, 57]:
+            return "drizzle"
+        elif code in [61, 63, 65, 66, 67, 80, 81, 82]:
+            return "rain"
+        elif code in [71, 73, 75, 77, 85, 86]:
+            return "snow"
+        elif code in [95, 96, 99]:
+            return "thunderstorm"
+        else:
+            return "clear"
 
-        Args:
-            condition (str): Условие погоды на английском
-
-        Returns:
-            str: Условие погоды на русском
-        """
+    def _translate_condition(self, code: int) -> str:
+        """Переводит код погоды на русский."""
         conditions = {
             "clear": "ясно",
-            "partly-cloudy": "переменная облачность",
             "cloudy": "облачно",
-            "overcast": "пасмурно",
-            "rain": "дождь",
-            "heavy-rain": "сильный дождь",
-            "snow": "снег",
-            "heavy-snow": "сильный снег",
-            "sleet": "мокрый снег",
-            "thunderstorm": "гроза",
+            "fog": "туман",
             "drizzle": "морось",
-            "rain-and-snow": "дождь со снегом"
+            "rain": "дождь",
+            "snow": "снег",
+            "thunderstorm": "гроза"
         }
-        return conditions.get(condition, condition)
+        condition = self._get_condition(code)
+        return conditions.get(condition, "неизвестно")
+
+    def _is_bad_weather(self, code: int) -> bool:
+        """Определяет, плохая ли погода."""
+        bad_codes = [45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 
+                     71, 73, 75, 77, 80, 81, 82, 85, 86, 95, 96, 99]
+        return code in bad_codes
 
     def is_bad_weather(self, weather_data: Optional[Dict]) -> bool:
-        """
-        Проверка, является ли погода плохой.
-
-        Args:
-            weather_data (Optional[Dict]): Данные о погоде
-
-        Returns:
-            bool: True если погода плохая
-        """
+        """Проверка, плохая ли погода."""
         if not weather_data:
             return False
         return weather_data.get("is_bad", False)
 
     def get_weather_text(self, weather_data: Optional[Dict]) -> str:
-        """
-        Возвращает текстовое описание погоды.
-
-        Args:
-            weather_data (Optional[Dict]): Данные о погоде
-
-        Returns:
-            str: Текстовое описание погоды
-        """
+        """Текстовое описание погоды."""
         if not weather_data:
             return "🌤️ Погода: неизвестно"
 
         temp = weather_data.get("temperature", 0)
         description = weather_data.get("description", "неизвестно")
-        feels_like = weather_data.get("feels_like", 0)
+        wind = weather_data.get("wind_speed", 0)
+        city = weather_data.get("city_name", "неизвестном городе")
 
         emoji = "☀️" if not weather_data.get("is_bad", False) else "🌧️"
 
-        return (
-            f"{emoji} В Боровске сейчас {description}, "
-            f"{temp}°C (ощущается как {feels_like}°C)"
-        )
+        return f"{emoji} В {city} сейчас {description}, {temp}°C, ветер {wind} м/с"
