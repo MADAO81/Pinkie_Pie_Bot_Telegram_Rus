@@ -44,7 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/recipe — получить рецепт выпечки 🧁\n"
         f"/joke — услышать шутку 😄\n"
         f"/song — послушать песенку 🎵\n"
-        f"/weather — узнать погоду в Боровске 🌤️\n\n"
+        f"/weather — узнать погоду 🌤️\n\n"
         f"Просто напиши мне что-нибудь, и мы поболтаем! 💖\n\n"
         f"🤖 *Версия:* {VERSION}"
     )
@@ -66,13 +66,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/recipe — случайный рецепт выпечки 🧁\n"
         "/joke — весёлая шутка 😄\n"
         "/song — песенка от Пинки Пай 🎵\n"
-        "/weather — погода в Боровске 🌤️\n\n"
+        "/weather — погода в любом городе 🌤️\n\n"
         "✨ *Особенности:*\n"
         "• Я работаю с 9:00 до 20:00 ежедневно\n"
         "• Если на улице дождь — могу немного погрустить 🌧️\n"
         "• Люблю комментировать сообщения и картинки с 20% вероятностью\n"
         "• Распознаю голосовые сообщения 🎤\n"
-        "• Могу рассказать о погоде, если спросите!\n"
+        "• Могу рассказать о погоде в любом городе\n"
         "• Всегда готова подбодрить и поддержать!\n\n"
         "💡 *Совет:* Просто напиши мне что-нибудь, и мы поболтаем!"
     )
@@ -103,8 +103,8 @@ async def recipe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, parse_mode="Markdown")
     else:
         await status_message.edit_text(
-            "😅 Ой-ой-ой! Не могу найти рецепт на andychef.ru!\n"
-            "Попробуй позже или загляни на сайт сам! 🍰"
+            "😅 Ой-ой-ой! Не могу найти рецепт!\n"
+            "Попробуй позже! 🍰"
         )
 
 
@@ -159,17 +159,35 @@ async def song_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /weather — показать погоду."""
+    """
+    Обработчик команды /weather.
+    Показывает погоду в указанном городе или в Ворсино по умолчанию.
+    """
     if not is_working_hours():
         if update.message.chat.type == "private":
             await update.message.reply_text(get_working_status_message())
         return
 
+    # Получаем аргументы команды (город)
+    args = context.args
+    city = " ".join(args) if args else None
+
     status_message = await update.message.reply_text("🌤️ Смотрю в окно... Сейчас узнаю!")
 
     try:
-        weather = await weather_service.get_weather()
-        
+        if city:
+            # Погода для указанного города
+            weather = await weather_service.get_weather_by_city(city)
+            if not weather:
+                await status_message.edit_text(
+                    f"😅 Не могу найти город '{city}'!\n"
+                    "Проверь название или попробуй просто /weather для Ворсино 🌤️"
+                )
+                return
+        else:
+            # Погода по умолчанию (Ворсино)
+            weather = await weather_service.get_weather()
+
         if weather:
             weather_text = weather_service.get_weather_text(weather)
             
@@ -181,21 +199,22 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📈 Давление: {weather.get('pressure', '?')} мм рт. ст."
             )
             
-            full_text = f"🌤️ *Погода в Боровске*\n\n{weather_text}{details}"
+            full_text = f"🌤️ *Погода*\n\n{weather_text}{details}"
             
-            # Определяем настроение для комментария
-            mood, _ = await mood_system.determine_mood()
-            if mood == "sad":
-                full_text += "\n\n😔 Погодка сегодня грустная... Но мы всё равно найдём повод для улыбки!"
-            else:
-                full_text += "\n\n🎈 Отличная погода для вечеринки! 🎉"
+            # Определяем настроение для Ворсино (только для погоды по умолчанию)
+            if not city:
+                mood, _ = await mood_system.determine_mood()
+                if mood == "sad":
+                    full_text += "\n\n😔 Погодка сегодня грустная... Но мы всё равно найдём повод для улыбки!"
+                else:
+                    full_text += "\n\n🎈 Отличная погода для вечеринки! 🎉"
             
             await status_message.delete()
             await update.message.reply_text(full_text, parse_mode="Markdown")
         else:
             await status_message.edit_text(
                 "😅 Ой-ой! Не могу узнать погоду!\n"
-                "Проверь, правильно ли настроен API Яндекс Погоды! 🌧️"
+                "Проверь, правильно ли настроен API OpenWeatherMap! 🌧️"
             )
             
     except Exception as e:
