@@ -2,10 +2,10 @@
 """
 Обработчик текстовых сообщений бота Пинки Пай.
 Реагирует только на упоминания или с вероятностью 20%.
-Поддерживает запросы погоды в любом городе.
+Поддерживает запросы погоды в любом городе (с падежами).
 
 Автор: MADAO81
-Версия: 2.1
+Версия: 2.2
 """
 
 import logging
@@ -26,12 +26,34 @@ weather_service = WeatherService()
 context_manager = ContextManager()
 
 
+def normalize_city_name(city: str) -> str:
+    """
+    Приводит название города к именительному падежу.
+    """
+    city = city.strip()
+    
+    # Убираем окончания падежей
+    if city.endswith('е'):      # Москве, Лондоне, Париже
+        city = city[:-1]
+    elif city.endswith('ы'):    # Москвы
+        city = city[:-1]
+    elif city.endswith('у'):    # Лондону
+        city = city[:-1]
+    elif city.endswith('ой'):   # Москвой
+        city = city[:-2]
+    elif city.endswith('ем'):   # Лондоном
+        city = city[:-2]
+    elif city.endswith('ю'):    # Киеву
+        city = city[:-1]
+    elif city.endswith('я'):    # Киева
+        city = city[:-1]
+    
+    return city
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработка текстовых сообщений.
-    Реагирует только если:
-    - сообщение адресовано боту (@username или ответ на сообщение бота)
-    - или с вероятностью 20% (каждое 5-е сообщение)
     """
     if not is_working_hours():
         if update.message.chat.type == "private":
@@ -39,38 +61,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # === ПРОВЕРКА: нужно ли реагировать ===
-    
-    # 1. В личных сообщениях — всегда отвечаем
     if update.message.chat.type == "private":
-        pass  # пропускаем проверки
-    
-    # 2. В группах — проверяем
+        pass
     else:
-        # Получаем имя бота
         bot_username = context.bot.username
-        
-        # Проверяем, упомянут ли бот
         is_mentioned = False
         
-        # Проверяем текст на упоминание @username
         if update.message.text and f"@{bot_username}" in update.message.text.lower():
             is_mentioned = True
         
-        # Проверяем, является ли сообщение ответом на сообщение бота
         if update.message.reply_to_message:
             if update.message.reply_to_message.from_user.username == bot_username:
                 is_mentioned = True
         
-        # Если бот не упомянут — проверяем случайную вероятность (20%)
         if not is_mentioned:
-            # 20% вероятность ответить на случайное сообщение
             if random.random() >= 0.2:
-                logger.info(f"⏭️ Пропускаем сообщение (не упомянут, 80% вероятности)")
+                logger.info(f"⏭️ Пропускаем сообщение")
                 return
             else:
-                logger.info(f"🎲 Ответим на случайное сообщение (20% вероятности)")
+                logger.info(f"🎲 Ответим на случайное сообщение")
 
-    # === ГЕНЕРАЦИЯ ОТВЕТА ===
     status_message = await update.message.reply_text("💭 Думаю...")
 
     try:
@@ -85,7 +95,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Пытаемся найти город в сообщении
             city = None
             
-            # Проверяем фразы "в [город]" или "[город]"
             patterns = [
                 r'в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "в Москве"
                 r'погода\s+в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',  # "погода в Москве"
@@ -97,17 +106,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 match = re.search(pattern, user_message, re.IGNORECASE)
                 if match:
                     city = match.group(1).strip()
-                    # Убираем знаки препинания в конце
                     city = re.sub(r'[.,!?;:]+$', '', city)
+                    # Приводим к именительному падежу
+                    city = normalize_city_name(city)
                     break
             
             # Если город найден и это не Ворсино/Боровск — показываем погоду в городе
             if city and city.lower() not in ["ворсино", "боровск", "ворсино."]:
-                logger.info(f"🌍 Запрошен город: {city}")
+                logger.info(f"🌍 Запрошен город (нормализован): {city}")
                 weather = await weather_service.get_weather_by_city(city)
                 if weather:
+                    # Используем оригинальное название из API
+                    city_name = weather.get('city_name', city)
                     weather_text = weather_service.get_weather_text(weather)
-                    response = f"🌤️ *Погода в {city.capitalize()}*\n\n{weather_text}"
+                    response = f"🌤️ *Погода в {city_name}*\n\n{weather_text}"
                 else:
                     response = f"😅 Не могу найти город '{city}'! Попробуй написать название на русском или английском. 🌧️"
             else:
@@ -123,15 +135,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(response, parse_mode="Markdown")
             return
 
-        # === ОБЫЧНЫЙ ОТВЕТ (не про погоду) ===
-        # Определяем настроение
+        # === ОБЫЧНЫЙ ОТВЕТ ===
         mood, weather = await mood_system.determine_mood()
         mood_desc = "грустное" if mood == "sad" else "весёлое"
 
-        # Получаем контекст диалога
         context_history = context_manager.get_context(user_id)
 
-        # Генерируем ответ
         response = await get_pinkie_response(
             user_message=user_message,
             mood_description=mood_desc,
