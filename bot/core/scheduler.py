@@ -10,25 +10,45 @@
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime
 from bot.config import Config
 from bot.services.recipe_service import RecipeService
 
 logger = logging.getLogger(__name__)
 
-# Глобальный планировщик
 scheduler = AsyncIOScheduler()
 recipe_service = RecipeService()
+
+# Хранилище для активных чатов (в будущем можно перенести в БД)
+active_chats = set()
+
+
+def add_chat(chat_id: int):
+    """Добавляет чат для ежедневной рассылки."""
+    active_chats.add(chat_id)
+    logger.info(f"📋 Чат {chat_id} добавлен для рассылки рецептов")
+
+
+def remove_chat(chat_id: int):
+    """Удаляет чат из рассылки."""
+    if chat_id in active_chats:
+        active_chats.remove(chat_id)
+        logger.info(f"📋 Чат {chat_id} удалён из рассылки")
+
+
+def get_active_chats():
+    """Возвращает список активных чатов."""
+    return list(active_chats)
 
 
 async def send_daily_recipe(app):
     """
     Отправка ежедневного рецепта всем активным чатам.
-
-    Args:
-        app: Экземпляр приложения telegram-bot
     """
-    logger.info("📅 Отправка ежедневного рецепта...")
+    if not active_chats:
+        logger.info("📭 Нет активных чатов для рассылки рецептов")
+        return
+
+    logger.info(f"📅 Отправка ежедневного рецепта в {len(active_chats)} чатов...")
 
     try:
         # Получаем рецепт
@@ -47,12 +67,20 @@ async def send_daily_recipe(app):
             f"Приятного аппетита! 🎂 Не забудь позвать меня на чай! ☕"
         )
 
-        # Здесь нужно отправлять рецепт всем активным чатам
-        # Пока просто логируем
-        logger.info(f"✅ Рецепт получен: {recipe['title']}")
-
-        # TODO: Реализовать отправку в активные чаты
-        # Для этого нужно хранить список chat_id в БД
+        # Отправляем во все активные чаты
+        for chat_id in active_chats:
+            try:
+                await app.bot.send_message(
+                    chat_id=chat_id,
+                    text=message,
+                    parse_mode="Markdown"
+                )
+                logger.info(f"✅ Рецепт отправлен в чат {chat_id}")
+            except Exception as e:
+                logger.error(f"❌ Ошибка отправки в чат {chat_id}: {e}")
+                # Если бот заблокирован или чат удалён — убираем
+                if "bot was blocked" in str(e) or "chat not found" in str(e):
+                    remove_chat(chat_id)
 
     except Exception as e:
         logger.error(f"❌ Ошибка при отправке рецепта: {e}")
@@ -61,12 +89,8 @@ async def send_daily_recipe(app):
 def start_scheduler(app):
     """
     Запуск планировщика.
-
-    Args:
-        app: Экземпляр приложения telegram-bot
     """
     try:
-        # Настраиваем расписание: каждый день в указанное время
         hour, minute = map(int, Config.RECIPE_SEND_TIME.split(':'))
 
         scheduler.add_job(
