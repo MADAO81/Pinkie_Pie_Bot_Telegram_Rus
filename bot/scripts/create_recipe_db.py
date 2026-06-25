@@ -11,7 +11,7 @@ import sqlite3
 import json
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "recipes.db"
+DB_PATH = Path(__file__).parent.parent.parent / "data" / "recipes.db"
 
 
 def init_db():
