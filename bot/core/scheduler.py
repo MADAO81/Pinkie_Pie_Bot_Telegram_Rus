@@ -4,10 +4,11 @@
 Ежедневная отправка рецептов в 12:00.
 
 Автор: MADAO81
-Версия: 2.0
+Версия: 2.1 (с сохранением подписок в БД)
 """
 
 import logging
+import sqlite3
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from bot.config import Config
@@ -18,32 +19,68 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 recipe_service = RecipeService()
 
-# Хранилище для активных чатов (в будущем можно перенести в БД)
-active_chats = set()
+# Путь к БД
+DB_PATH = Config.DATA_DIR / "recipes.db"
+
+
+def _get_connection():
+    """Возвращает соединение с БД."""
+    return sqlite3.connect(DB_PATH)
+
+
+def _init_db():
+    """Создаёт таблицу подписок, если её нет."""
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            chat_id INTEGER PRIMARY KEY,
+            subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 
 def add_chat(chat_id: int):
     """Добавляет чат для ежедневной рассылки."""
-    active_chats.add(chat_id)
+    _init_db()
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO subscriptions (chat_id) VALUES (?)", (chat_id,))
+    conn.commit()
+    conn.close()
     logger.info(f"📋 Чат {chat_id} добавлен для рассылки рецептов")
 
 
 def remove_chat(chat_id: int):
     """Удаляет чат из рассылки."""
-    if chat_id in active_chats:
-        active_chats.remove(chat_id)
-        logger.info(f"📋 Чат {chat_id} удалён из рассылки")
+    _init_db()
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM subscriptions WHERE chat_id = ?", (chat_id,))
+    conn.commit()
+    conn.close()
+    logger.info(f"📋 Чат {chat_id} удалён из рассылки")
 
 
 def get_active_chats():
-    """Возвращает список активных чатов."""
-    return list(active_chats)
+    """Возвращает список активных чатов из БД."""
+    _init_db()
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT chat_id FROM subscriptions")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
 
 
 async def send_daily_recipe(app):
     """
     Отправка ежедневного рецепта всем активным чатам.
     """
+    active_chats = get_active_chats()
+
     if not active_chats:
         logger.info("📭 Нет активных чатов для рассылки рецептов")
         return
@@ -51,14 +88,12 @@ async def send_daily_recipe(app):
     logger.info(f"📅 Отправка ежедневного рецепта в {len(active_chats)} чатов...")
 
     try:
-        # Получаем рецепт
         recipe = await recipe_service.get_random_recipe()
 
         if not recipe:
             logger.warning("⚠️ Не удалось получить рецепт")
             return
 
-        # Формируем сообщение с рецептом
         message = (
             f"🧁 *Вот что я испекла для тебя сегодня!*\n\n"
             f"*{recipe['title']}*\n\n"
@@ -67,7 +102,6 @@ async def send_daily_recipe(app):
             f"Приятного аппетита! 🎂 Не забудь позвать меня на чай! ☕"
         )
 
-        # Отправляем во все активные чаты
         for chat_id in active_chats:
             try:
                 await app.bot.send_message(
@@ -78,7 +112,6 @@ async def send_daily_recipe(app):
                 logger.info(f"✅ Рецепт отправлен в чат {chat_id}")
             except Exception as e:
                 logger.error(f"❌ Ошибка отправки в чат {chat_id}: {e}")
-                # Если бот заблокирован или чат удалён — убираем
                 if "bot was blocked" in str(e) or "chat not found" in str(e):
                     remove_chat(chat_id)
 
@@ -87,10 +120,9 @@ async def send_daily_recipe(app):
 
 
 def start_scheduler(app):
-    """
-    Запуск планировщика.
-    """
+    """Запуск планировщика."""
     try:
+        _init_db()
         hour, minute = map(int, Config.RECIPE_SEND_TIME.split(':'))
 
         scheduler.add_job(
