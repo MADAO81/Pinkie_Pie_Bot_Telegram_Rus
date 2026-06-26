@@ -8,6 +8,7 @@
 """
 
 import logging
+import os
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -35,7 +36,7 @@ from bot.handlers.admin import (
 from bot.handlers.messages import handle_message
 from bot.handlers.photos import handle_photo
 from bot.handlers.voice import handle_voice
-from bot.core.scheduler import start_scheduler
+from bot.core.scheduler import start_scheduler, add_chat
 from bot.core.constants import VERSION
 
 # Настройка логирования
@@ -66,6 +67,17 @@ def main():
 
     # Создаём приложение
     app = Application.builder().token(Config.TELEGRAM_TOKEN).build()
+
+    # === АВТОМАТИЧЕСКАЯ ЗАГРУЗКА ПОДПИСОК ИЗ .env ===
+    default_chats = os.getenv("DEFAULT_CHATS", "")
+    if default_chats:
+        for chat_id in default_chats.split(","):
+            try:
+                chat_id = int(chat_id.strip())
+                add_chat(chat_id)
+                logger.info(f"✅ Автоматически добавлен чат: {chat_id}")
+            except Exception as e:
+                logger.error(f"❌ Ошибка добавления чата {chat_id}: {e}")
 
     # ===== 1. РЕГИСТРИРУЕМ ВСЕ КОМАНДЫ =====
     # Основные команды
