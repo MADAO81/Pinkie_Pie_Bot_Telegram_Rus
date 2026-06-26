@@ -67,7 +67,8 @@ def main():
     # Создаём приложение
     app = Application.builder().token(Config.TELEGRAM_TOKEN).build()
 
-    # Регистрируем команды
+    # ===== 1. РЕГИСТРИРУЕМ ВСЕ КОМАНДЫ =====
+    # Основные команды
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("recipe", recipe_command))
@@ -82,7 +83,7 @@ def main():
     app.add_handler(CommandHandler("listrecipes", list_recipes_command))
     app.add_handler(CommandHandler("delrecipe", del_recipe_command))
 
-    # Регистрируем обработчики сообщений
+    # ===== 2. РЕГИСТРИРУЕМ ОБРАБОТЧИКИ СООБЩЕНИЙ =====
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
