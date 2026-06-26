@@ -45,6 +45,9 @@ class Config:
     RECIPE_SEND_TIME = os.getenv("RECIPE_SEND_TIME", "12:00")
     RECIPE_URL = os.getenv("RECIPE_URL", "https://food.ru")
 
+    # ========== АДМИНИСТРАТОР ==========
+    ADMIN_ID = os.getenv("ADMIN_ID")
+
     # ========== ПУТИ ==========
     BASE_DIR = Path(__file__).parent.parent
     DATA_DIR = BASE_DIR / "data"
