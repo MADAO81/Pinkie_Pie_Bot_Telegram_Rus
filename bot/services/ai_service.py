@@ -121,7 +121,7 @@ async def analyze_image(
         logger.info("🖼️ Отправка запроса в OpenAI Vision API...")
 
         response = await client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4-vision-preview",  # или "gpt-4o"
             messages=messages,
             max_tokens=500,
             temperature=0.8,
