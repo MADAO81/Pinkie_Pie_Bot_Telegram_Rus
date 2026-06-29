@@ -57,8 +57,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_message=user_message,
             mood_description=mood_desc
         )
-        logger.info(f"📤 Отправлен ответ пользователю: {response[:100] if response else 'None'}")
-        
+        logger.info(f"🖼️ Ответ Vision API: {response[:100] if response else 'None'}")
+
         if not response:
             response = "🖼️ Ой, какая красивая картинка! Жаль, что у меня сейчас глаза разбегаются от такого великолепия! 😄"
 
@@ -69,6 +69,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response += f"\n\n{weather_text}"
 
         await status_message.delete()
+
+        logger.info(f"📤 Отправлен ответ пользователю: {response[:100] if response else 'None'}")
 
         if update.message.chat.type == "private":
             await update.message.reply_text(f"🖼️ {response}")
