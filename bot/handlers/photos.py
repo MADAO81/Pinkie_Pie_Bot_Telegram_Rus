@@ -57,8 +57,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_message=user_message,
             mood_description=mood_desc
         )
-        logger.info(f"🖼️ Ответ Vision API: {response[:100] if response else 'None'}")
-
+        logger.info(f"📤 Отправлен ответ пользователю: {response[:100] if response else 'None'}")
+        
         if not response:
             response = "🖼️ Ой, какая красивая картинка! Жаль, что у меня сейчас глаза разбегаются от такого великолепия! 😄"
 
