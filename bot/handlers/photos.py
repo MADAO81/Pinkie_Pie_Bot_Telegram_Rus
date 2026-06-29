@@ -1,9 +1,9 @@
 # bot/handlers/photos.py
 """
-Обработчик фотографий бота Пинки Пай.
+Photo handler for Pinkie Pie bot.
 
-Автор: MADAO81
-Версия: 2.0
+Author: MADAO81
+Version: 2.0
 """
 
 import logging
@@ -23,11 +23,15 @@ context_manager = ContextManager()
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка фотографий."""
+    """Handles photos."""
+    logger.info("📸 ФУНКЦИЯ handle_photo ВЫЗВАНА!")
+
     if not is_working_hours():
+        logger.info("⏰ Не рабочее время, фото игнорируется")
         return
 
     if not mood_system.should_comment():
+        logger.info("🎲 Решено НЕ комментировать фото")
         return
 
     status_message = await update.message.reply_text("🖼️ Смотрю на картинку... Сейчас что-то придумаю!")
@@ -36,17 +40,24 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user_message = update.message.caption or "Красивая картинка!"
 
+        # Получаем фото в максимальном качестве
         photo_file = await update.message.photo[-1].get_file()
         image_data = await photo_file.download_as_bytearray()
+        
+        logger.info(f"📸 Фото получено, размер: {len(image_data)} байт")
 
+        # Определяем настроение
         mood, weather = await mood_system.determine_mood()
         mood_desc = "грустное" if mood == "sad" else "весёлое"
 
+        # Анализируем изображение через Vision API
+        logger.info("🖼️ Отправка запроса в Vision API...")
         response = await analyze_image(
             image_data=bytes(image_data),
             user_message=user_message,
             mood_description=mood_desc
         )
+        logger.info(f"🖼️ Ответ Vision API: {response[:100] if response else 'None'}")
 
         if not response:
             response = "🖼️ Ой, какая красивая картинка! Жаль, что у меня сейчас глаза разбегаются от такого великолепия! 😄"
@@ -68,6 +79,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         context_manager.save_context(user_id, f"[Фото] {user_message}", response)
+        logger.info("✅ Фото обработано успешно")
 
     except Exception as e:
         logger.error(f"❌ Ошибка обработки фото: {e}")
