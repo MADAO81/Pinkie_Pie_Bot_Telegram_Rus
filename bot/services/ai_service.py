@@ -89,11 +89,13 @@ async def analyze_image(
         if mood_description == "sad":
             system_prompt += "\n\nYou are in a sad mood, but still trying to be kind."
 
-        # Кодируем изображение в base64
         base64_image = base64.b64encode(image_data).decode('utf-8')
 
-        # Формируем запрос для Vision API
         messages = [
+            {
+                "role": "system",
+                "content": system_prompt
+            },
             {
                 "role": "user",
                 "content": [
@@ -104,24 +106,17 @@ async def analyze_image(
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}",
-                            "detail": "low"
+                            "url": f"data:image/jpeg;base64,{base64_image}"
                         }
                     }
                 ]
             }
         ]
 
-        # Добавляем системный промпт
-        messages = [
-            {"role": "system", "content": system_prompt},
-            *messages
-        ]
-
         logger.info("🖼️ Отправка запроса в OpenAI Vision API...")
 
         response = await client.chat.completions.create(
-            model="gpt-4-vision-preview",  # или "gpt-4o"
+            model="gpt-4o",
             messages=messages,
             max_tokens=500,
             temperature=0.8,
