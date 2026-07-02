@@ -6,7 +6,7 @@
 Использует pymorphy2 для автоматической нормализации русских городов.
 
 Автор: MADAO81
-Версия: 2.8
+Версия: 2.9
 """
 
 import logging
@@ -121,8 +121,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info(f"🌍 Запрошен город: {city_original} (нормализован: {city_normalized})")
                 weather = await weather_service.get_weather_by_city(city_normalized)
                 if weather:
-                    weather_text = weather_service.get_weather_text(weather)
-                    # Используем ОРИГИНАЛЬНОЕ название города (с падежом)
+                    # Передаём city_original для сохранения падежа в ответе
+                    weather_text = weather_service.get_weather_text(weather, city_original)
                     response = f"🌤️ *Погода в {city_original}*\n\n{weather_text}"
                 else:
                     response = f"😅 Не могу найти город '{city_original}'! Попробуй написать название на русском или английском. 🌧️"
