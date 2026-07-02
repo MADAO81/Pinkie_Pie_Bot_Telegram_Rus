@@ -3,9 +3,10 @@
 Обработчик текстовых сообщений бота Пинки Пай.
 Реагирует только на упоминания или с вероятностью 20%.
 Поддерживает запросы погоды в любом городе (с падежами).
+Использует pymorphy2 для автоматической нормализации русских городов.
 
 Автор: MADAO81
-Версия: 2.7
+Версия: 2.8
 """
 
 import logging
@@ -18,12 +19,34 @@ from bot.services.ai_service import get_pinkie_response
 from bot.services.weather_service import WeatherService
 from bot.utils.time_utils import is_working_hours, get_working_status_message
 from bot.core.context_manager import ContextManager
+import pymorphy2
 
 logger = logging.getLogger(__name__)
 
 mood_system = MoodSystem()
 weather_service = WeatherService()
 context_manager = ContextManager()
+morph = pymorphy2.MorphAnalyzer()
+
+
+def normalize_city_name(city: str) -> str:
+    """
+    Приводит название города к именительному падежу с помощью pymorphy2.
+    Если не удаётся — возвращает исходное название с заглавной буквы.
+    """
+    city = city.strip()
+    if not city:
+        return city
+
+    try:
+        parsed = morph.parse(city)[0]
+        normalized = parsed.inflect({'nomn'})
+        if normalized:
+            return normalized.word.capitalize()
+    except Exception:
+        pass
+
+    return city.capitalize()
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -67,8 +90,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_weather_query = any(keyword in user_message.lower() for keyword in weather_keywords)
 
         if is_weather_query:
-            # Пытаемся найти город в сообщении
             city_original = None  # для отображения пользователю
+            city_normalized = None  # для поиска в API
             
             patterns = [
                 r'во\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
@@ -89,16 +112,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if match:
                     city_original = match.group(1).strip()
                     city_original = re.sub(r'[.,!?;:]+$', '', city_original)
+                    # Нормализуем для поиска в API
+                    city_normalized = normalize_city_name(city_original)
                     break
             
             # Если город найден и это не Ворсино/Боровск
-            if city_original and city_original.lower() not in ["ворсино", "боровск", "ворсино."]:
-                logger.info(f"🌍 Запрошен город: {city_original}")
-                # Ищем погоду прямо по оригинальному названию (без нормализации!)
-                weather = await weather_service.get_weather_by_city(city_original)
+            if city_normalized and city_normalized.lower() not in ["ворсино", "боровск", "ворсино."]:
+                logger.info(f"🌍 Запрошен город: {city_original} (нормализован: {city_normalized})")
+                weather = await weather_service.get_weather_by_city(city_normalized)
                 if weather:
                     weather_text = weather_service.get_weather_text(weather)
-                    # Используем оригинальное название города (с падежом)
+                    # Используем ОРИГИНАЛЬНОЕ название города (с падежом)
                     response = f"🌤️ *Погода в {city_original}*\n\n{weather_text}"
                 else:
                     response = f"😅 Не могу найти город '{city_original}'! Попробуй написать название на русском или английском. 🌧️"
