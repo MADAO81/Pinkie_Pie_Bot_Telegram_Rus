@@ -3,7 +3,7 @@
 Weather service using Open-Meteo (free, no API key).
 
 Author: MADAO81
-Version: 5.2
+Version: 5.3
 """
 
 import logging
@@ -167,18 +167,18 @@ class WeatherService:
             return "clear"
 
     def _translate_condition(self, code: int) -> str:
-        """Translates weather code to English description."""
+        """Переводит код погоды на русский."""
         conditions = {
-            "clear": "clear",
-            "cloudy": "cloudy",
-            "fog": "fog",
-            "drizzle": "drizzle",
-            "rain": "rain",
-            "snow": "snow",
-            "thunderstorm": "thunderstorm"
+            "clear": "ясно",
+            "cloudy": "облачно",
+            "fog": "туман",
+            "drizzle": "морось",
+            "rain": "дождь",
+            "snow": "снег",
+            "thunderstorm": "гроза"
         }
         condition = self._get_condition(code)
-        return conditions.get(condition, "unknown")
+        return conditions.get(condition, "неизвестно")
 
     def _is_bad_weather(self, code: int) -> bool:
         """Determines if weather is bad."""
@@ -195,15 +195,15 @@ class WeatherService:
     def get_weather_text(self, weather_data: Optional[Dict], city_display: Optional[str] = None) -> str:
         """Returns text description of weather."""
         if not weather_data:
-            return "🌤️ Weather: unknown"
+            return "🌤️ Погода: неизвестно"
 
         temp = weather_data.get("temperature", 0)
-        description = weather_data.get("description", "unknown")
+        description = weather_data.get("description", "неизвестно")
         wind = weather_data.get("wind_speed", 0)
         
         # Используем переданное название, если есть
-        city = city_display if city_display else weather_data.get("city_name", "unknown")
+        city = city_display if city_display else weather_data.get("city_name", "неизвестном городе")
 
         emoji = "☀️" if not weather_data.get("is_bad", False) else "🌧️"
 
-        return f"{emoji} In {city} it's currently {description}, {temp}°C, wind {wind} m/s"
+        return f"{emoji} В {city} сейчас {description}, {temp}°C, ветер {wind} м/с"
