@@ -48,6 +48,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/weather — узнать погоду 🌤️\n"
         f"/subscribe — подписаться на ежедневные рецепты 🧁\n"
         f"/unsubscribe — отписаться от рецептов 😢\n\n"
+        f"*О данных:* Я сохраняю историю диалога только для поддержания беседы. Данные не передаются третьим лицам. Напиши /cleardata, чтобы удалить всю историю.\n\n"
         f"Просто напиши мне что-нибудь, и мы поболтаем! 💖\n\n"
         f"🤖 *Версия:* {VERSION}"
     )
@@ -244,5 +245,17 @@ async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(
         "😢 *Ты отписался от ежедневных рецептов!*\n\n"
         "Если захочешь вернуться — напиши /subscribe 🧁",
+        parse_mode="Markdown"
+    )
+
+async def clear_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Очистка истории диалога пользователя."""
+    from bot.core.context_manager import ContextManager
+    user_id = update.effective_user.id
+    cm = ContextManager()
+    cm.clear_context(user_id)
+    await update.message.reply_text(
+        "🗑️ *Твоя история диалога удалена!*\n\n"
+        "Теперь я ничего не помню о нашем разговоре. Но мы всегда можем начать заново! 😊🎈",
         parse_mode="Markdown"
     )
