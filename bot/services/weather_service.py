@@ -125,7 +125,7 @@ class WeatherService:
                 "wind_speed": wind_speed,
                 "condition": self._get_condition(weather_code),
                 "description": self._translate_condition(weather_code),
-                "city_name": "Vorsino" if lat == self.default_lat and lon == self.default_lon else "Unknown",
+                "city_name": "Ворсино" if lat == self.default_lat and lon == self.default_lon else "Unknown",
                 "country": "",
                 "is_bad": self._is_bad_weather(weather_code)
             }
