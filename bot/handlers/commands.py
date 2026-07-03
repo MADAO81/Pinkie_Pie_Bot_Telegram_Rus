@@ -1,7 +1,7 @@
 # bot/handlers/commands.py
 """
 Обработчики команд бота Пинки Пай:
-/start, /help, /recipe, /joke, /song, /weather, /subscribe, /unsubscribe
+/start, /help, /recipe, /joke, /song, /weather, /subscribe, /unsubscribe, /cleardata
 
 Автор: MADAO81
 Версия: 2.0
@@ -16,13 +16,15 @@ from bot.services.ai_service import get_pinkie_response
 from bot.services.weather_service import WeatherService
 from bot.utils.time_utils import is_working_hours, get_working_status_message
 from bot.core.constants import VERSION
-from bot.core.scheduler import add_chat, remove_chat, get_active_chats
+from bot.core.scheduler import add_chat, remove_chat
+from bot.core.context_manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
 mood_system = MoodSystem()
 recipe_service = RecipeService()
 weather_service = WeatherService()
+context_manager = ContextManager()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -47,8 +49,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/song — послушать песенку 🎵\n"
         f"/weather — узнать погоду 🌤️\n"
         f"/subscribe — подписаться на ежедневные рецепты 🧁\n"
-        f"/unsubscribe — отписаться от рецептов 😢\n\n"
-        f"*О данных:* Я сохраняю историю диалога только для поддержания беседы. Данные не передаются третьим лицам. Напиши /cleardata, чтобы удалить всю историю.\n\n"
+        f"/unsubscribe — отписаться от рецептов 😢\n"
+        f"/cleardata — удалить историю диалога 🗑️\n\n"
+        f"🔒 *О данных:* Я сохраняю историю диалога только для поддержания беседы. "
+        f"Данные не передаются третьим лицам. Напиши /cleardata, чтобы удалить всю историю.\n\n"
         f"Просто напиши мне что-нибудь, и мы поболтаем! 💖\n\n"
         f"🤖 *Версия:* {VERSION}"
     )
@@ -72,7 +76,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/song — песенка от Пинки Пай 🎵\n"
         "/weather — погода в любом городе 🌤️\n"
         "/subscribe — подписаться на ежедневные рецепты 🧁\n"
-        "/unsubscribe — отписаться от рецептов 😢\n\n"
+        "/unsubscribe — отписаться от рецептов 😢\n"
+        "/cleardata — удалить историю диалога 🗑️\n\n"
+        "🔒 *О данных:* Я сохраняю историю диалога только для поддержания беседы. "
+        "Данные не передаются третьим лицам. Напиши /cleardata, чтобы удалить всю историю.\n\n"
         "✨ *Особенности:*\n"
         "• Я работаю с 9:00 до 20:00 ежедневно\n"
         "• Если на улице дождь — могу немного погрустить 🌧️\n"
@@ -248,12 +255,11 @@ async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         parse_mode="Markdown"
     )
 
+
 async def clear_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Очистка истории диалога пользователя."""
-    from bot.core.context_manager import ContextManager
     user_id = update.effective_user.id
-    cm = ContextManager()
-    cm.clear_context(user_id)
+    context_manager.clear_context(user_id)
     await update.message.reply_text(
         "🗑️ *Твоя история диалога удалена!*\n\n"
         "Теперь я ничего не помню о нашем разговоре. Но мы всегда можем начать заново! 😊🎈",
