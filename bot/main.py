@@ -33,6 +33,17 @@ from bot.handlers.admin import (
     list_recipes_command,
     del_recipe_command
 )
+from bot.handlers.commands import (
+    start,
+    help_command,
+    recipe_command,
+    joke_command,
+    song_command,
+    weather_command,
+    subscribe_command,
+    unsubscribe_command,
+    clear_data  # <-- добавить
+)
 from bot.handlers.messages import handle_message
 from bot.handlers.photos import handle_photo
 from bot.handlers.voice import handle_voice
@@ -89,6 +100,7 @@ def main():
     app.add_handler(CommandHandler("weather", weather_command))
     app.add_handler(CommandHandler("subscribe", subscribe_command))
     app.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
+    app.add_handler(CommandHandler("cleardata", clear_data))
 
     # Административные команды
     app.add_handler(CommandHandler("addrecipe", add_recipe_command))
