@@ -26,23 +26,13 @@ from bot.handlers.commands import (
     song_command,
     weather_command,
     subscribe_command,
-    unsubscribe_command
+    unsubscribe_command,
+    clear_data
 )
 from bot.handlers.admin import (
     add_recipe_command,
     list_recipes_command,
     del_recipe_command
-)
-from bot.handlers.commands import (
-    start,
-    help_command,
-    recipe_command,
-    joke_command,
-    song_command,
-    weather_command,
-    subscribe_command,
-    unsubscribe_command,
-    clear_data  # <-- добавить
 )
 from bot.handlers.messages import handle_message
 from bot.handlers.photos import handle_photo
@@ -56,6 +46,11 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Если включён DEBUG_MODE — поднимаем уровень логирования
+if Config.DEBUG_MODE:
+    logging.getLogger().setLevel(logging.DEBUG)
+    logger.info("🐛 DEBUG_MODE включён")
 
 
 def main():
