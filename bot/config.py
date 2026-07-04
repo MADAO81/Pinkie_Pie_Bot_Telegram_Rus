@@ -48,6 +48,9 @@ class Config:
     # ========== АДМИНИСТРАТОР ==========
     ADMIN_ID = os.getenv("ADMIN_ID")
 
+    # ========== РЕЖИМ ОТЛАДКИ ==========
+    DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
     # ========== ПУТИ ==========
     BASE_DIR = Path(__file__).parent.parent
     DATA_DIR = BASE_DIR / "data"
