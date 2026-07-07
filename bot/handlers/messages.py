@@ -76,8 +76,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if random.random() >= 0.2:
                 logger.info(f"⏭️ Пропускаем сообщение")
                 return
-            else:
-                logger.info(f"🎲 Ответим на случайное сообщение")
+
 
     status_message = await update.message.reply_text("💭 Думаю...")
 
