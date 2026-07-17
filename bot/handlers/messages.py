@@ -74,7 +74,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if not is_mentioned:
             # if random.random() >= 0.2:
-                logger.info(f"⏭️ Пропускаем сообщение")
+                logger.info(f"⏭️ Пропускаем сообщение в группе (не моё @)")
                 return
         #     else:
         # logger.info(f"🎲 Ответим на случайное сообщение")
