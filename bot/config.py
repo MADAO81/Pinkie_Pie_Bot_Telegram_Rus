@@ -33,7 +33,7 @@ class Config:
 
     # ========== РАБОЧЕЕ ВРЕМЯ ==========
     WORK_START_HOUR = int(os.getenv("WORK_START_HOUR", 9))
-    WORK_END_HOUR = int(os.getenv("WORK_END_HOUR", 20))
+    WORK_END_HOUR = int(os.getenv("WORK_END_HOUR", 22))
 
     # ========== НАСТРОЕНИЕ ==========
     SAD_PROBABILITY = float(os.getenv("SAD_PROBABILITY", 0.2))
