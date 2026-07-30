@@ -1,12 +1,10 @@
 # bot/handlers/messages.py
 """
 Обработчик текстовых сообщений бота Пинки Пай.
-Реагирует только на упоминания или с вероятностью 20%.
-Поддерживает запросы погоды в любом городе (с падежами).
-Использует pymorphy2 для автоматической нормализации русских городов.
+Реагирует только на упоминания.
 
 Автор: MADAO81
-Версия: 2.9
+Версия: 2.0
 """
 
 import logging
@@ -32,7 +30,6 @@ morph = pymorphy2.MorphAnalyzer()
 def normalize_city_name(city: str) -> str:
     """
     Приводит название города к именительному падежу с помощью pymorphy2.
-    Если не удаётся — возвращает исходное название с заглавной буквы.
     """
     city = city.strip()
     if not city:
@@ -58,27 +55,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(get_working_status_message())
         return
 
-    # === ПРОВЕРКА: нужно ли реагировать ===
+    # === ПРОВЕРКА: отвечаем только на свои упоминания ===
     if update.message.chat.type == "private":
-        pass
+        pass  # В личке отвечаем всегда
     else:
         bot_username = context.bot.username
         is_mentioned = False
-        
+
         if update.message.text and f"@{bot_username}" in update.message.text.lower():
             is_mentioned = True
-        
+
         if update.message.reply_to_message:
             if update.message.reply_to_message.from_user.username == bot_username:
                 is_mentioned = True
-        
-        if not is_mentioned:
-            # if random.random() >= 0.2:
-                logger.info(f"⏭️ Пропускаем сообщение в группе (не моё @)")
-                return
-        #     else:
-        # logger.info(f"🎲 Ответим на случайное сообщение")
 
+        if not is_mentioned:
+            logger.info(f"⏭️ Пропускаем сообщение в группе (не моё @)")
+            return
 
     status_message = await update.message.reply_text("💭 Думаю...")
 
@@ -91,9 +84,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_weather_query = any(keyword in user_message.lower() for keyword in weather_keywords)
 
         if is_weather_query:
-            city_original = None  # для отображения пользователю
-            city_normalized = None  # для поиска в API
-            
+            city_original = None
+            city_normalized = None
+
             patterns = [
                 r'во\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
                 r'в\s+([А-Яа-яA-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
@@ -107,35 +100,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 r'weather\s+in\s+([A-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
                 r'weather\s+([A-Za-z\s\-]+?)(?:\s|,|\.|$|\))',
             ]
-            
+
             for pattern in patterns:
                 match = re.search(pattern, user_message, re.IGNORECASE)
                 if match:
                     city_original = match.group(1).strip()
                     city_original = re.sub(r'[.,!?;:]+$', '', city_original)
-                    # Нормализуем для поиска в API
                     city_normalized = normalize_city_name(city_original)
                     break
-            
-            # Если город найден и это не Ворсино/Боровск
+
             if city_normalized and city_normalized.lower() not in ["ворсино", "боровск", "ворсино."]:
                 logger.info(f"🌍 Запрошен город: {city_original} (нормализован: {city_normalized})")
                 weather = await weather_service.get_weather_by_city(city_normalized)
                 if weather:
-                    # Передаём city_original для сохранения падежа в ответе
                     weather_text = weather_service.get_weather_text(weather, city_original)
                     response = f"🌤️ *Погода в {city_original}*\n\n{weather_text}"
                 else:
                     response = f"😅 Не могу найти город '{city_original}'! Попробуй написать название на русском или английском. 🌧️"
             else:
-                # По умолчанию — Ворсино
                 weather = await weather_service.get_weather()
                 if weather:
                     weather_text = weather_service.get_weather_text(weather)
                     response = f"🌤️ *Погода в Ворсино*\n\n{weather_text}"
                 else:
                     response = "😅 Не могу узнать погоду! Попробуй позже! 🌧️"
-            
+
             await status_message.delete()
             await update.message.reply_text(response, parse_mode="Markdown")
             return
