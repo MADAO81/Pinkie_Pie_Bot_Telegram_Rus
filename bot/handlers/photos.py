@@ -22,24 +22,43 @@ context_manager = ContextManager()
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка фотографий — только по запросу."""
+    """Обработка фотографий — только по запросу и только на свои упоминания."""
     logger.info("📸 Фото получено")
 
     if not is_working_hours():
         logger.info("⏰ Не рабочее время, фото игнорируется")
         return
 
-    user_message = update.message.caption or ""
+    # === Проверка: упомянута ли Пинки ===
+    if update.message.chat.type != "private":
+        bot_username = context.bot.username
+        is_mentioned = False
 
-    # Проверяем, просит ли пользователь прокомментировать фото
+        # Проверяем упоминание в тексте
+        if update.message.caption and f"@{bot_username}" in update.message.caption.lower():
+            is_mentioned = True
+
+        # Проверяем ответ на сообщение бота
+        if update.message.reply_to_message:
+            if update.message.reply_to_message.from_user.username == bot_username:
+                is_mentioned = True
+
+        if not is_mentioned:
+            logger.info(f"⏭️ Пропускаем фото в группе (не моё @)")
+            return
+
+    # === Проверка: просит ли пользователь прокомментировать фото ===
+    user_message = update.message.caption or ""
     ask_keywords = ["что", "это", "прокомменти", "расскажи", "опиши", "скажи", "посмотри", "что на картинке"]
     is_asking = any(keyword in user_message.lower() for keyword in ask_keywords)
 
-    if not is_asking:
-        await update.message.reply_text("🖼️ Красивая картинка! Если хочешь, чтобы я её описала — спроси, например: «что на картинке?» 😊")
+    if not is_asking and update.message.chat.type != "private":
+        await update.message.reply_text(
+            "🖼️ Красивая картинка! Если хочешь, чтобы я её описала — спроси, например: «что на картинке?» 🎈"
+        )
         return
 
-    # Если просят — комментируем
+    # === Если просят — комментируем ===
     status_message = await update.message.reply_text("🖼️ Смотрю на картинку... Сейчас что-то придумаю!")
 
     try:
