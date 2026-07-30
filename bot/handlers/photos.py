@@ -1,9 +1,8 @@
 # bot/handlers/photos.py
 """
 Photo handler for Pinkie Pie bot.
-
-Author: MADAO81
-Version: 2.0
+Автор: MADAO81
+Версия: 2.0
 """
 
 import logging
@@ -23,54 +22,50 @@ context_manager = ContextManager()
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles photos."""
-    logger.info("📸 ФУНКЦИЯ handle_photo ВЫЗВАНА!")
+    """Обработка фотографий — только по запросу."""
+    logger.info("📸 Фото получено")
 
     if not is_working_hours():
         logger.info("⏰ Не рабочее время, фото игнорируется")
         return
 
-    if not mood_system.should_comment():
-        logger.info("🎲 Решено НЕ комментировать фото")
+    user_message = update.message.caption or ""
+
+    # Проверяем, просит ли пользователь прокомментировать фото
+    ask_keywords = ["что", "это", "прокомменти", "расскажи", "опиши", "скажи", "посмотри", "что на картинке"]
+    is_asking = any(keyword in user_message.lower() for keyword in ask_keywords)
+
+    if not is_asking:
+        await update.message.reply_text("🖼️ Красивая картинка! Если хочешь, чтобы я её описала — спроси, например: «что на картинке?» 😊")
         return
 
+    # Если просят — комментируем
     status_message = await update.message.reply_text("🖼️ Смотрю на картинку... Сейчас что-то придумаю!")
 
     try:
         user_id = update.effective_user.id
-        user_message = update.message.caption or "Красивая картинка!"
-
-        # Получаем фото в максимальном качестве
         photo_file = await update.message.photo[-1].get_file()
         image_data = await photo_file.download_as_bytearray()
-        
-        logger.info(f"📸 Фото получено, размер: {len(image_data)} байт")
 
-        # Определяем настроение
         mood, weather = await mood_system.determine_mood()
         mood_desc = "грустное" if mood == "sad" else "весёлое"
 
-        # Анализируем изображение через Vision API
-        logger.info("🖼️ Отправка запроса в Vision API...")
         response = await analyze_image(
             image_data=bytes(image_data),
             user_message=user_message,
             mood_description=mood_desc
         )
-        logger.info(f"🖼️ Ответ Vision API: {response[:100] if response else 'None'}")
 
         if not response:
-            response = "🖼️ Ой, какая красивая картинка! Жаль, что у меня сейчас глаза разбегаются от такого великолепия! 😄"
+            response = "🖼️ Ой, какая красивая картинка! 😄"
 
         # Проверяем, спрашивает ли пользователь о погоде в подписи к фото
         weather_keywords = ["погода", "weather", "за окном", "температура", "дождь", "солнце", "градус", "ветер"]
-        if user_message and any(keyword in user_message.lower() for keyword in weather_keywords):
+        if any(keyword in user_message.lower() for keyword in weather_keywords):
             weather_text = weather_service.get_weather_text(weather)
             response += f"\n\n{weather_text}"
 
         await status_message.delete()
-
-        logger.info(f"📤 Отправлен ответ пользователю: {response[:100] if response else 'None'}")
 
         if update.message.chat.type == "private":
             await update.message.reply_text(f"🖼️ {response}")
@@ -87,5 +82,5 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Ошибка обработки фото: {e}")
         await status_message.edit_text(
             "🖼️ Ой, какая красивая картинка! "
-            "Жаль, что я немного ослепла от такого великолепия! 😄"
+            "Что-то пошло не так, но она всё равно прекрасна! 😄"
         )
