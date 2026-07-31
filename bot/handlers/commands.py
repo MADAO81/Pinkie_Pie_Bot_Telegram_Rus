@@ -1,10 +1,9 @@
 # bot/handlers/commands.py
 """
-Обработчики команд бота Пинки Пай:
-/start, /help, /recipe, /joke, /song, /weather, /subscribe, /unsubscribe, /cleardata
+Обработчики команд бота Пинки Пай.
 
 Автор: MADAO81
-Версия: 2.0
+Версия: 2.1
 """
 
 import logging
@@ -81,11 +80,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔒 *О данных:* Я сохраняю историю диалога только для поддержания беседы. "
         "Данные не передаются третьим лицам. Напиши /cleardata, чтобы удалить всю историю.\n\n"
         "✨ *Особенности:*\n"
-        "• Я работаю с 9:00 до 20:00 ежедневно\n"
+        "• Я работаю с 9:00 до 22:00 ежедневно\n"
         "• Если на улице дождь — могу немного погрустить 🌧️\n"
-        "• Люблю комментировать сообщения и картинки с 20% вероятностью\n"
-        "• Распознаю голосовые сообщения 🎤\n"
-        "• Могу рассказать о погоде в любом городе\n"
         "• Всегда готова подбодрить и поддержать!\n\n"
         "💡 *Совет:* Просто напиши мне что-нибудь, и мы поболтаем!"
     )
@@ -102,22 +98,42 @@ async def recipe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_message = await update.message.reply_text("🍳 Ищу для тебя вкусный рецепт... Подожди немного!")
 
-    recipe = await recipe_service.get_random_recipe()
+    recipe = recipe_service.get_random_recipe()
 
-    if recipe:
-        text = (
-            f"🧁 *Вот что я нашла для тебя!*\n\n"
-            f"*{recipe['title']}*\n\n"
-            f"📝 *Ингредиенты:*\n{recipe['ingredients']}\n\n"
-            f"👩‍🍳 *Приготовление:*\n{recipe['instructions']}\n\n"
-            f"Приятного аппетита! 🎂 Не забудь позвать меня на чай! ☕"
-        )
-        await status_message.delete()
-        await update.message.reply_text(text, parse_mode="Markdown")
-    else:
+    if not recipe:
         await status_message.edit_text(
             "😅 Ой-ой-ой! Не могу найти рецепт!\n"
             "Попробуй позже! 🍰"
+        )
+        return
+
+    # Формируем запрос к DeepSeek для «озвучивания» рецепта голосом Пинки
+    prompt = (
+        f"Перепиши этот рецепт в стиле Пинки Пай. Ты — Пинки Пай! "
+        f"Расскажи рецепт так, как будто ты учишь друга готовить на своей кухне. "
+        f"Говори энергично, весело, с шутками, с восклицаниями. "
+        f"Добавь свои фирменные фразы: «Оки-доки-локи!», «добавь щепотку волшебства», «и вот так появилась Эквестрия!». "
+        f"Используй эмодзи. Рецепт должен быть живым, как будто ты прыгаешь вокруг стола!\n\n"
+        f"Название: {recipe['name']}\n"
+        f"Ингредиенты: {recipe['ingredients']}\n"
+        f"Инструкции: {recipe['instructions']}\n\n"
+        f"Расскажи это по-своему, как Пинки Пай!"
+    )
+
+    mood, _ = await mood_system.determine_mood()
+    mood_desc = "грустное" if mood == "sad" else "весёлое"
+
+    styled_recipe = await get_pinkie_response(prompt, mood_description=mood_desc)
+
+    await status_message.delete()
+
+    if styled_recipe:
+        await update.message.reply_text(f"🧁 *Рецепт от Пинки Пай!*\n\n{styled_recipe}", parse_mode="Markdown")
+    else:
+        # fallback — если DeepSeek не ответил
+        await update.message.reply_text(
+            recipe_service.format_recipe(recipe),
+            parse_mode="Markdown"
         )
 
 
@@ -172,10 +188,7 @@ async def song_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик команды /weather.
-    Показывает погоду в указанном городе или в Ворсино по умолчанию.
-    """
+    """Обработчик команды /weather."""
     if not is_working_hours():
         if update.message.chat.type == "private":
             await update.message.reply_text(get_working_status_message())
@@ -200,23 +213,19 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if weather:
             weather_text = weather_service.get_weather_text(weather)
-            
             details = (
                 f"\n\n📊 *Подробнее:*\n"
                 f"💧 Влажность: {weather.get('humidity', '?')}%\n"
                 f"💨 Ветер: {weather.get('wind_speed', '?')} м/с\n"
                 f"📈 Давление: {weather.get('pressure', '?')} мм рт. ст."
             )
-            
             full_text = f"🌤️ *Погода*\n\n{weather_text}{details}"
-            
             if not city:
                 mood, _ = await mood_system.determine_mood()
                 if mood == "sad":
                     full_text += "\n\n😔 Погодка сегодня грустная... Но мы всё равно найдём повод для улыбки!"
                 else:
                     full_text += "\n\n🎈 Отличная погода для вечеринки! 🎉"
-            
             await status_message.delete()
             await update.message.reply_text(full_text, parse_mode="Markdown")
         else:
@@ -224,7 +233,7 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "😅 Ой-ой! Не могу узнать погоду!\n"
                 "Попробуй позже! 🌧️"
             )
-            
+
     except Exception as e:
         logger.error(f"❌ Ошибка получения погоды: {e}")
         await status_message.edit_text(
@@ -257,7 +266,7 @@ async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def clear_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Очистка истории диалога пользователя."""
+    """Очистка истории диалога."""
     user_id = update.effective_user.id
     context_manager.clear_context(user_id)
     await update.message.reply_text(

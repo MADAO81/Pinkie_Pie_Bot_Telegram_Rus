@@ -4,7 +4,7 @@
 Загрузка переменных окружения из .env файла.
 
 Автор: MADAO81
-Версия: 2.0
+Версия: 3.0
 """
 
 import os
@@ -21,11 +21,18 @@ class Config:
     # ========== TELEGRAM ==========
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-    # ========== OPENAI ==========
+    # ========== OPENAI (для картинок и голоса) ==========
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4-turbo")
     OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", 1000))
     OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", 0.85))
+
+    # ========== DEEPSEEK (через ProxyAPI) ==========
+    PROXY_API_KEY = os.getenv("PROXY_API_KEY")
+    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+    DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek/deepseek-v4-flash")
+    DEEPSEEK_MAX_TOKENS = int(os.getenv("DEEPSEEK_MAX_TOKENS", 8192))
+    DEEPSEEK_TEMPERATURE = float(os.getenv("DEEPSEEK_TEMPERATURE", 0.9))
 
     # ========== КООРДИНАТЫ ПО УМОЛЧАНИЮ (Ворсино, Боровский район) ==========
     DEFAULT_LAT = float(os.getenv("DEFAULT_LAT", 55.0965))
@@ -43,7 +50,6 @@ class Config:
 
     # ========== РЕЦЕПТЫ ==========
     RECIPE_SEND_TIME = os.getenv("RECIPE_SEND_TIME", "12:00")
-    RECIPE_URL = os.getenv("RECIPE_URL", "https://food.ru")
 
     # ========== АДМИНИСТРАТОР ==========
     ADMIN_ID = os.getenv("ADMIN_ID")
@@ -56,6 +62,7 @@ class Config:
     DATA_DIR = BASE_DIR / "data"
     LOGS_DIR = BASE_DIR / "logs"
     AUDIO_DIR = DATA_DIR / "audio"
+    RECIPES_DB = DATA_DIR / "recipes.db"
 
     # Создаём директории
     DATA_DIR.mkdir(parents=True, exist_ok=True)

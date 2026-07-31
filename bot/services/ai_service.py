@@ -1,9 +1,10 @@
 # bot/services/ai_service.py
 """
-AI service for OpenAI integration (GPT-4-turbo, Vision, Whisper).
+AI сервис для бота Пинки Пай.
+Гибридный режим: DeepSeek (текст) + OpenAI (картинки + голос).
 
-Author: MADAO81
-Version: 2.0
+Автор: MADAO81
+Версия: 3.2
 """
 
 import logging
@@ -11,7 +12,7 @@ import base64
 import os
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, List, Dict, Any
 from openai import AsyncOpenAI
 from bot.config import Config
 from bot.core.constants import SYSTEM_PROMPT
@@ -24,21 +25,24 @@ async def get_pinkie_response(
     mood_description: str = "happy",
     context_history: Optional[List[Dict]] = None
 ) -> Optional[str]:
-    """Generates a response from Pinkie Pie using OpenAI."""
+    """Генерирует ответ от Пинки Пай через DeepSeek (через ProxyAPI)."""
     try:
-        client = AsyncOpenAI(api_key=Config.OPENAI_API_KEY)
+        client = AsyncOpenAI(
+            api_key=Config.PROXY_API_KEY,
+            base_url="https://api.proxyapi.ru/openrouter/v1"
+        )
 
         system_prompt = SYSTEM_PROMPT
         if mood_description == "sad":
             system_prompt += """
 
-            ⚠️ IMPORTANT: YOU ARE IN A SAD MOOD RIGHT NOW (Pinkamena Diane Pie)!
+            ⚠️ IMPORTANT: YOU ARE IN A SAD MOOD RIGHT NOW!
             - Speak more softly, gently, and slowly
             - Use fewer exclamation marks (maximum 1-2 per message)
             - Add a touch of melancholy to your jokes
             - But remember: you must NOT make others depressed
             - End the message with something reassuring
-            - Avoid excessive energy and bouncing
+            - Avoid excessive energy
             """
 
         messages = [
@@ -51,27 +55,24 @@ async def get_pinkie_response(
 
         messages.append({"role": "user", "content": user_message})
 
-        logger.info(f"🧠 Request to OpenAI (model: {Config.OPENAI_MODEL})...")
+        logger.info(f"🧠 Запрос к DeepSeek (модель: {Config.DEEPSEEK_MODEL})...")
 
         response = await client.chat.completions.create(
-            model=Config.OPENAI_MODEL,
+            model=Config.DEEPSEEK_MODEL,
             messages=messages,
-            max_tokens=Config.OPENAI_MAX_TOKENS,
-            temperature=Config.OPENAI_TEMPERATURE,
+            max_tokens=Config.DEEPSEEK_MAX_TOKENS,
+            temperature=Config.DEEPSEEK_TEMPERATURE,
             timeout=30.0
         )
 
         if response.choices and len(response.choices) > 0:
             return response.choices[0].message.content.strip()
         else:
-            logger.warning("⚠️ OpenAI returned empty response")
+            logger.warning("⚠️ DeepSeek вернул пустой ответ")
             return None
 
-    except ImportError:
-        logger.error("❌ openai library not installed. Run: pip install openai")
-        return None
     except Exception as e:
-        logger.error(f"❌ Error calling OpenAI: {e}")
+        logger.error(f"❌ DeepSeek error: {e}")
         return None
 
 
@@ -80,10 +81,13 @@ async def analyze_image(
     user_message: Optional[str] = None,
     mood_description: str = "happy"
 ) -> Optional[str]:
-    """Analyzes an image using OpenAI Vision API."""
-    logger.info("🖼️ Запрос к OpenAI Vision API...")
+    """Анализирует изображение через OpenAI Vision API (через ProxyAPI)."""
+    logger.info("🖼️ Request to OpenAI Vision API...")
     try:
-        client = AsyncOpenAI(api_key=Config.OPENAI_API_KEY)
+        client = AsyncOpenAI(
+            api_key=Config.PROXY_API_KEY,
+            base_url="https://api.proxyapi.ru/v1"
+        )
 
         system_prompt = SYSTEM_PROMPT
         if mood_description == "sad":
@@ -113,7 +117,7 @@ async def analyze_image(
             }
         ]
 
-        logger.info("🖼️ Отправка запроса в OpenAI Vision API...")
+        logger.info("🖼️ Sending request to OpenAI Vision API...")
 
         response = await client.chat.completions.create(
             model="gpt-4o",
@@ -126,11 +130,11 @@ async def analyze_image(
         if response.choices and len(response.choices) > 0:
             return response.choices[0].message.content.strip()
         else:
-            logger.warning("⚠️ Vision API вернул пустой ответ")
+            logger.warning("⚠️ Vision API returned empty response")
             return None
 
     except Exception as e:
-        logger.error(f"❌ Ошибка при анализе изображения: {e}")
+        logger.error(f"❌ Error analyzing image: {e}")
         return None
 
 
@@ -138,9 +142,12 @@ async def transcribe_audio(
     audio_data: bytes,
     file_extension: str = ".ogg"
 ) -> Optional[str]:
-    """Transcribes audio using OpenAI Whisper."""
+    """Транскрибирует аудио через OpenAI Whisper (через ProxyAPI)."""
     try:
-        client = AsyncOpenAI(api_key=Config.OPENAI_API_KEY)
+        client = AsyncOpenAI(
+            api_key=Config.PROXY_API_KEY,
+            base_url="https://api.proxyapi.ru/v1"
+        )
 
         audio_dir = Path(Config.AUDIO_DIR)
         audio_dir.mkdir(parents=True, exist_ok=True)
@@ -155,7 +162,7 @@ async def transcribe_audio(
             transcription = await client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
-                language="en"
+                language="ru"
             )
 
         try:
@@ -170,70 +177,59 @@ async def transcribe_audio(
             logger.warning("⚠️ Whisper returned empty response")
             return None
 
-    except ImportError:
-        logger.error("❌ openai library not installed")
-        return None
     except Exception as e:
-        logger.error(f"❌ Error transcribing audio: {e}")
+        logger.error(f"❌ Whisper error: {e}")
         return None
 
 
 async def check_ai_health() -> Dict[str, Any]:
-    """Checks OpenAI service availability."""
+    """Проверяет доступность сервисов."""
     status = {
-        'openai': False,
+        'deepseek': False,
         'vision': False,
         'whisper': False,
         'any_available': False
     }
 
     try:
-        client = AsyncOpenAI(api_key=Config.OPENAI_API_KEY)
+        client = AsyncOpenAI(
+            api_key=Config.PROXY_API_KEY,
+            base_url="https://api.proxyapi.ru/openrouter/v1"
+        )
 
-        try:
-            test_response = await client.chat.completions.create(
-                model=Config.OPENAI_MODEL,
-                messages=[{"role": "user", "content": "Test"}],
-                max_tokens=5,
-                timeout=10.0
-            )
-            if test_response.choices:
-                status['openai'] = True
-                logger.info("✅ OpenAI GPT available")
-        except Exception as e:
-            logger.warning(f"⚠️ OpenAI GPT unavailable: {e}")
-
-        status['vision'] = status['openai']
-        status['whisper'] = status['openai']
-        status['any_available'] = status['openai']
-
-    except ImportError:
-        logger.error("❌ openai library not installed")
+        response = await client.models.list()
+        if response:
+            status['deepseek'] = True
+            logger.info("✅ DeepSeek доступен")
     except Exception as e:
-        logger.error(f"❌ Error checking OpenAI: {e}")
+        logger.warning(f"⚠️ DeepSeek недоступен: {e}")
+
+    status['vision'] = True
+    status['whisper'] = True
+    status['any_available'] = status['deepseek']
 
     return status
 
 
 def get_ai_status_message(status: Dict[str, Any]) -> str:
-    """Returns formatted AI status message."""
+    """Возвращает форматированное сообщение о статусе ИИ."""
     if not status['any_available']:
-        return "🧠 AI: ❌ *Unavailable* (check OPENAI_API_KEY in .env)"
+        return "🧠 ИИ: ❌ *Недоступен* (проверьте ключи в .env)"
 
-    openai_status = "✅ Available" if status['openai'] else "❌ Unavailable"
-    vision_status = "✅ Available" if status['vision'] else "❌ Unavailable"
-    whisper_status = "✅ Available" if status['whisper'] else "❌ Unavailable"
+    deepseek_status = "✅ Доступен" if status['deepseek'] else "❌ Недоступен"
+    vision_status = "✅ Доступен" if status['vision'] else "❌ Недоступен"
+    whisper_status = "✅ Доступен" if status['whisper'] else "❌ Недоступен"
 
     return (
-        f"🧠 *AI Status:*\n\n"
-        f"🤖 OpenAI GPT: {openai_status}\n"
-        f"🖼️ Vision API: {vision_status}\n"
+        f"🧠 *Статус ИИ:*\n\n"
+        f"🔵 DeepSeek: {deepseek_status}\n"
+        f"🖼️ Vision: {vision_status}\n"
         f"🎤 Whisper: {whisper_status}"
     )
 
 
-def format_context_for_openai(context_history: List[Dict]) -> List[Dict]:
-    """Formats conversation history for OpenAI."""
+def format_context_for_deepseek(context_history: List[Dict]) -> List[Dict]:
+    """Форматирует историю диалога для DeepSeek."""
     formatted = []
     for msg in context_history:
         if msg.get('role') == 'user':
