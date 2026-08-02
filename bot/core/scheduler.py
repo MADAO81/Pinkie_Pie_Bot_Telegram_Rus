@@ -1,10 +1,10 @@
 # bot/core/scheduler.py
 """
-Планировщик задач для бота Пинки Пай.
+Планировщик для бота Пинки Пай.
 Ежедневная отправка рецептов в 12:00.
 
 Автор: MADAO81
-Версия: 2.1 (с сохранением подписок в БД)
+Версия: 2.2
 """
 
 import logging
@@ -19,17 +19,14 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 recipe_service = RecipeService()
 
-# Путь к БД
 DB_PATH = Config.DATA_DIR / "recipes.db"
 
 
 def _get_connection():
-    """Возвращает соединение с БД."""
     return sqlite3.connect(DB_PATH)
 
 
 def _init_db():
-    """Создаёт таблицу подписок, если её нет."""
     conn = _get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -43,7 +40,6 @@ def _init_db():
 
 
 def add_chat(chat_id: int):
-    """Добавляет чат для ежедневной рассылки."""
     _init_db()
     conn = _get_connection()
     cursor = conn.cursor()
@@ -54,7 +50,6 @@ def add_chat(chat_id: int):
 
 
 def remove_chat(chat_id: int):
-    """Удаляет чат из рассылки."""
     _init_db()
     conn = _get_connection()
     cursor = conn.cursor()
@@ -65,7 +60,6 @@ def remove_chat(chat_id: int):
 
 
 def get_active_chats():
-    """Возвращает список активных чатов из БД."""
     _init_db()
     conn = _get_connection()
     cursor = conn.cursor()
@@ -76,9 +70,6 @@ def get_active_chats():
 
 
 async def send_daily_recipe(app):
-    """
-    Отправка ежедневного рецепта всем активным чатам.
-    """
     active_chats = get_active_chats()
 
     if not active_chats:
@@ -88,7 +79,8 @@ async def send_daily_recipe(app):
     logger.info(f"📅 Отправка ежедневного рецепта в {len(active_chats)} чатов...")
 
     try:
-        recipe = await recipe_service.get_random_recipe()
+        # Убираем await — get_random_recipe синхронная!
+        recipe = recipe_service.get_random_recipe()
 
         if not recipe:
             logger.warning("⚠️ Не удалось получить рецепт")
@@ -96,7 +88,7 @@ async def send_daily_recipe(app):
 
         message = (
             f"🧁 *Вот что я испекла для тебя сегодня!*\n\n"
-            f"*{recipe['title']}*\n\n"
+            f"*{recipe['name']}*\n\n"
             f"📝 *Ингредиенты:*\n{recipe['ingredients']}\n\n"
             f"👩‍🍳 *Приготовление:*\n{recipe['instructions']}\n\n"
             f"Приятного аппетита! 🎂 Не забудь позвать меня на чай! ☕"
@@ -120,7 +112,6 @@ async def send_daily_recipe(app):
 
 
 def start_scheduler(app):
-    """Запуск планировщика."""
     try:
         _init_db()
         hour, minute = map(int, Config.RECIPE_SEND_TIME.split(':'))
@@ -141,7 +132,6 @@ def start_scheduler(app):
 
 
 def stop_scheduler():
-    """Остановка планировщика."""
     try:
         scheduler.shutdown()
         logger.info("⏹️ Планировщик остановлен")
