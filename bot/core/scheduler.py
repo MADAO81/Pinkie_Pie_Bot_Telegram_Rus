@@ -4,7 +4,7 @@
 Ежедневная отправка рецептов в 12:00.
 
 Автор: MADAO81
-Версия: 2.3
+Версия: 3.0 — универсальная разбивка длинных сообщений
 """
 
 import logging
@@ -70,6 +70,47 @@ def get_active_chats():
     return [row[0] for row in rows]
 
 
+async def send_long_message(bot, chat_id: int, text: str, parse_mode: str = "Markdown"):
+    """Отправляет длинное сообщение, разбивая на части."""
+    if not text:
+        return
+
+    if len(text) < 4000:
+        await bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
+        return
+
+    parts = []
+    current_part = ""
+    for paragraph in text.split('\n'):
+        if len(current_part) + len(paragraph) + 1 < 4000:
+            current_part += paragraph + '\n'
+        else:
+            if current_part:
+                parts.append(current_part.strip())
+            current_part = paragraph + '\n'
+    if current_part:
+        parts.append(current_part.strip())
+
+    if len(parts) == 1 and len(parts[0]) > 4000:
+        words = parts[0].split()
+        parts = []
+        current_part = ""
+        for word in words:
+            if len(current_part) + len(word) + 1 < 4000:
+                current_part += word + ' '
+            else:
+                parts.append(current_part.strip())
+                current_part = word + ' '
+        if current_part:
+            parts.append(current_part.strip())
+
+    for i, part in enumerate(parts):
+        if i == 0:
+            await bot.send_message(chat_id=chat_id, text=part, parse_mode=parse_mode)
+        else:
+            await bot.send_message(chat_id=chat_id, text=f"*Продолжение:*\n{part}", parse_mode="Markdown")
+
+
 async def send_daily_recipe(app):
     active_chats = get_active_chats()
 
@@ -80,14 +121,12 @@ async def send_daily_recipe(app):
     logger.info(f"📅 Отправка ежедневного рецепта в {len(active_chats)} чатов...")
 
     try:
-        # Получаем рецепт из БД
         recipe = recipe_service.get_random_recipe()
 
         if not recipe:
             logger.warning("⚠️ Не удалось получить рецепт")
             return
 
-        # Формируем запрос к DeepSeek для «озвучивания» рецепта голосом Пинки
         prompt = (
             f"Перепиши этот рецепт в стиле Пинки Пай. Ты — Пинки Пай! "
             f"Расскажи рецепт так, как будто ты учишь друга готовить на своей кухне. "
@@ -100,13 +139,11 @@ async def send_daily_recipe(app):
             f"Расскажи это по-своему, как Пинки Пай!"
         )
 
-        # Получаем стилизованный рецепт от DeepSeek
         styled_recipe = await get_pinkie_response(prompt, mood_description="весёлое")
 
         if styled_recipe:
             message = f"🧁 *Рецепт от Пинки Пай!*\n\n{styled_recipe}"
         else:
-            # fallback — если DeepSeek не ответил
             message = (
                 f"🧁 *Вот что я испекла для тебя сегодня!*\n\n"
                 f"*{recipe['name']}*\n\n"
@@ -117,11 +154,7 @@ async def send_daily_recipe(app):
 
         for chat_id in active_chats:
             try:
-                await app.bot.send_message(
-                    chat_id=chat_id,
-                    text=message,
-                    parse_mode="Markdown"
-                )
+                await send_long_message(app.bot, chat_id, message, parse_mode="Markdown")
                 logger.info(f"✅ Рецепт отправлен в чат {chat_id}")
             except Exception as e:
                 logger.error(f"❌ Ошибка отправки в чат {chat_id}: {e}")
